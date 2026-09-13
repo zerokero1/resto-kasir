@@ -106,3 +106,24 @@ export async function exportAbsensi(rows, fileName = 'absensi.xlsx') {
   const buf = await wb.xlsx.writeBuffer();
   unduh(buf, fileName);
 }
+
+// rows: [{ periode, bahan, masuk, keluar }] — satu baris per bahan per periode
+export async function exportMutasiStok(rows, fileName = 'mutasi-stok.xlsx') {
+  const wb = bukaBuku();
+  wsHelper(wb, 'Masuk/Keluar', [
+    { header: 'Periode', key: 'periode', width: 14 },
+    { header: 'Bahan', key: 'bahan', width: 26 },
+    { header: 'Masuk', key: 'masuk', width: 12, style: { numFmt: '#,##0.00' } },
+    { header: 'Keluar', key: 'keluar', width: 12, style: { numFmt: '#,##0.00' } }
+  ], rows);
+  const buf = await wb.xlsx.writeBuffer();
+  unduh(buf, fileName);
+}
+
+function wsHelper(wb, name, cols, rows) {
+  const ws = wb.addWorksheet(name);
+  ws.columns = cols;
+  for (const r of rows) ws.addRow(r);
+  ws.getRow(1).font = { bold: true };
+  return ws;
+}

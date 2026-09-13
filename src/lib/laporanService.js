@@ -57,3 +57,61 @@ export async function absensiRentang(dari, sampai) {
   if (error) throw new Error(error.message);
   return data;
 }
+
+export function periodKey(ts, mode) {
+  const s = String(ts).slice(0, 10);
+  if (mode === 'harian') return s;
+  if (mode === 'bulanan') return s.slice(0, 7);
+  const d = new Date(ts);
+  const date = new Date(Date.UTC(d.getUTCFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const week = Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+  return `${date.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
+export async function mutasiStokBahan(dari, sampai) {
+  const [m, k] = await Promise.all([
+    supabase
+      .from('resto_barang_masuk')
+      .select('bahan_id, qty, tanggal, resto_produk(nama)')
+      .gte('tanggal', dari + 'T00:00:00')
+      .lte('tanggal', sampai + 'T23:59:59'),
+    supabase
+      .from('resto_barang_keluar')
+      .select('bahan_id, qty, tanggal, resto_produk(nama)')
+      .gte('tanggal', dari + 'T00:00:00')
+      .lte('tanggal', sampai + 'T23:59:59')
+  ]);
+  if (m.error) throw new Error(m.error.message);
+  if (k.error) throw new Error(k.error.message);
+  return { masuk: m.data || [], keluar: k.data || [] };
+}
+
+export function agregasiMutasi({ masuk, keluar }, mode) {
+  const periodeSet = new Set();
+  const perBahan = {};
+
+  function push(list, jenis) {
+    for (const r of list) {
+      const key = periodKey(r.tanggal, mode);
+      periodeSet.add(key);
+      const id = r.bahan_id;
+      if (!perBahan[id]) perBahan[id] = { bahan_id: id, nama: r.resto_produk?.nama || '?', masuk: 0, keluar: 0, per: {} };
+      if (!perBahan[id].per[key]) perBahan[id].per[key] = { masuk: 0, keluar: 0 };
+      const q = Number(r.qty) || 0;
+      if (jenis === 'masuk') { perBahan[id].masuk += q; perBahan[id].per[key].masuk += q; }
+      else { perBahan[id].keluar += q; perBahan[id].per[key].keluar += q; }
+    }
+  }
+  push(masuk, 'masuk');
+  push(keluar, 'keluar');
+
+  const periode = [...periodeSet].sort();
+  const bahan = Object.values(perBahan).map((b) => ({
+    ...b,
+    per: Object.fromEntries(periode.map((p) => [p, b.per[p] || { masuk: 0, keluar: 0 }]))
+  }));
+  return { periode, bahan };
+}

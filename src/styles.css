@@ -186,6 +186,7 @@ body {
   vertical-align: middle;
   text-transform: none;
 }
+.mut-detail { padding: 4px 12px 8px; background: #fafbfa; border-bottom: 1px solid var(--line); }
 
 /* ---------- login ---------- */
 .login { height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(160deg, var(--green), #0c7c62); padding: 16px; }
