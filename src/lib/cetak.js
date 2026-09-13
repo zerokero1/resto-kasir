@@ -1,27 +1,43 @@
+import { supabase } from './supabase';
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // ============ Aplikasi "Bluetooth Print" (mate.bluetoothprint) ============
-// URL GET yang mengembalikan JSON array baris-baris struk.
-// Bluetooth Print melakukan GET tanpa header, jadi apikey dikirim lewat query param.
-// PostgREST mendukung filter view via GET → ?nota_id=eq.<ID>&select=...&order=...
+// Struk disimpan sebagai file JSON publik di Supabase Storage (bucket "struk"),
+// jadi URL GET balikin PERSIS isi file tanpa header auth.
+// File berisi JSON *object* ber-index ({"0":{...},"1":{...}}), bukan array —
+// karena aplikasi Bluetooth Print mem-parse JSONObject (contoh PHP mereka
+// memakai json_encode($arr, JSON_FORCE_OBJECT)).
 export function strukBtUrl(notaId) {
-  const base = `${SUPABASE_URL}/rest/v1/v_struk`;
-  const params = new URLSearchParams({
-    nota_id: `eq.${notaId}`,
-    select: 'type,content,bold,align,format',
-    order: 'urut',
-    apikey: ANON_KEY
-  });
-  return `${base}?${params}`;
+  return `${SUPABASE_URL}/storage/v1/object/public/struk/${encodeURIComponent(notaId)}.json`;
 }
 
-export function bukaCetakBt(notaId) {
+// Simpan struk ke bucket "struk", lalu beri URL publik-nya.
+// baris = [{ text, center, width }] — dipakai juga untuk ESC/POS.
+export async function sinkronStruk(notaId, baris) {
+  const obj = {};
+  baris.forEach((r, i) => {
+    obj[String(i)] = {
+      type: 0,
+      content: (r.text ?? '').replace(/\s+$/, ''),
+      bold: r.bold ? 1 : 0,
+      align: r.center ? 1 : 0,
+      format: r.width ? 3 : 0
+    };
+  });
+  const { error } = await supabase.storage
+    .from('struk')
+    .upload(`${notaId}.json`, JSON.stringify(obj), { upsert: true, contentType: 'application/json' });
+  if (error) throw new Error('Gagal simpan struk: ' + error.message);
+  return strukBtUrl(notaId);
+}
+
+export async function bukaCetakBt(notaId, baris) {
   try {
-    const url = `my.bluetoothprint.scheme://${strukBtUrl(notaId)}`;
+    const url = await sinkronStruk(notaId, baris);
     const f = document.createElement('iframe');
     f.style.cssText = 'width:0;height:0;border:0;visibility:hidden';
-    f.src = url;
+    f.src = `my.bluetoothprint.scheme://${url}`;
     document.body.appendChild(f);
     setTimeout(() => { if (f.parentNode) f.parentNode.removeChild(f); }, 5000);
     return true;

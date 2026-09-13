@@ -54,15 +54,28 @@ export default function StrukModal({ p, onClose }) {
   // Cetak otomatis setelah pembayaran: pakai APK bila dalam APK, else aplikasi Bluetooth Print.
   useEffect(() => {
     if (btOn && p.lunas !== false && items.length > 0) {
-      const t = setTimeout(() => {
+      const t = setTimeout(async () => {
         try {
           if (diApk) cetakViaApk(barisStruk());
-          else bukaCetakBt(p.id);
+          else await bukaCetakBt(p.id, barisStruk());
         } catch (e) { setSt('Gagal: ' + e.message); }
       }, 800);
       return () => clearTimeout(t);
     }
   }, [p.id, p.lunas, btOn, items, diApk, barisStruk]);
+
+  async function cetakApp() {
+    setBusy(true);
+    setSt('Menyimpan struk…');
+    try {
+      await bukaCetakBt(p.id, barisStruk());
+      setSt('Dibuka di aplikasi Bluetooth Print ✓');
+    } catch (e) {
+      setSt('Gagal: ' + e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function cetakWeb() {
     setBusy(true);
@@ -105,7 +118,7 @@ export default function StrukModal({ p, onClose }) {
         ) : (
           <>
             <button className="btn btn-primary" disabled={busy} onClick={cetakWeb}>🖨️ Cetak BT Web</button>
-            <button className="btn" onClick={() => bukaCetakBt(p.id)}>📡 Cetak App</button>
+            <button className="btn" disabled={busy} onClick={cetakApp}>📡 Cetak App</button>
             <button className="btn" onClick={() => window.print()}>🖨️ Cetak Browser</button>
             <button className="btn" onClick={() => { putusWebBt(); setSt(''); }}>Putus BT</button>
           </>
