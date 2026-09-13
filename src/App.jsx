@@ -5,6 +5,7 @@ import Login from './pages/Login';
 import Layout from './components/Layout';
 import POS from './pages/POS';
 import Riwayat from './pages/Riwayat';
+import Hutang from './pages/Hutang';
 import Stok from './pages/Stok';
 import Produk from './pages/Produk';
 import Laporan from './pages/Laporan';
@@ -38,6 +39,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<POS user={user} />} />
         <Route path="/riwayat" element={<Riwayat />} />
+        <Route path="/hutang" element={<Hutang />} />
         <Route path="/stok" element={<Stok user={user} />} />
         <Route path="/produk" element={<Produk />} />
         <Route path="/laporan" element={<Laporan />} />

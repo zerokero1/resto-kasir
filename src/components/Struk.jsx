@@ -27,6 +27,7 @@ export default function StrukModal({ p, onClose }) {
           <div className="s-line">{p.id}</div>
           <div className="s-line">{fmtTgl(p.tanggal)}</div>
           <div className="s-line">Kasir: {p.nama_kasir || '-'}</div>
+          {p.lunas === false && <div className="s-line" style={{ fontWeight: 800 }}>STATUS: BELUM DIBAYAR</div>}
           <div className="s-rule" />
           {items.map((it) => (
             <div className="s-item" key={it.id}>

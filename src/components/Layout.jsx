@@ -5,6 +5,7 @@ import { hariIni } from '../lib/format';
 const tabs = [
   { to: '/', label: 'Kasir', icon: '🛒' },
   { to: '/riwayat', label: 'Riwayat', icon: '🧾' },
+  { to: '/hutang', label: 'Hutang', icon: '⏳' },
   { to: '/stok', label: 'Stok', icon: '📦' },
   { to: '/produk', label: 'Produk', icon: '🍽️' },
   { to: '/laporan', label: 'Laporan', icon: '📊' },

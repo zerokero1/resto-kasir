@@ -30,7 +30,9 @@ export async function simpanPesanan({ items, bayar, kembalian, metode, kasirId, 
       metode,
       user_id: kasirId,
       nama_kasir: namaKasir,
-      catatan: catatan || null
+      catatan: catatan || null,
+      lunas: metode !== 'hutang',
+      tanggal_lunas: metode !== 'hutang' ? new Date().toISOString() : null
     })
     .select()
     .single();
