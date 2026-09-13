@@ -114,7 +114,7 @@ export default function Produk() {
       </div>
 
       {resepFor && (
-        <div className="overlay">
+        <div className="overlay" onClick={(e) => { if (e.target === e.currentTarget) setResepFor(null); }}>
           <div className="card">
             <div className="k-head">Resep «{resepFor.nama}» <span className="muted small">(jumlah bahan per porsi)</span></div>
             {bahan.map((b) => (

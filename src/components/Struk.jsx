@@ -15,7 +15,7 @@ export default function StrukModal({ p, onClose }) {
   }, [p.id]);
 
   return (
-    <div className="overlay">
+    <div className="overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="card struk-btns">
         <button className="btn btn-primary" onClick={() => window.print()}>🖨️ Cetak</button>
         <button className="btn" onClick={onClose}>Tutup</button>
