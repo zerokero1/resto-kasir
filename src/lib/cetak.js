@@ -1,22 +1,25 @@
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// URL JSON struk yang dibaca aplikasi "Bluetooth Print" (mate.bluetoothprint)
-// PostgREST menerima apikey sebagai url param, jadi aman untuk GET tanpa header.
+// URL GET yang mengembalikan JSON array baris-baris struk.
+// Bluetooth Print melakukan GET tanpa header, jadi apikey dikirim lewat query param.
+// PostgREST mendukung filter view via GET → ?nota_id=eq.<ID>&select=...&order=...
 export function strukBtUrl(notaId) {
-  return `${SUPABASE_URL}/rest/v1/rpc/struk_nota?pesanan_id=${encodeURIComponent(notaId)}&apikey=${encodeURIComponent(ANON_KEY)}`;
+  const base = `${SUPABASE_URL}/rest/v1/v_struk`;
+  const params = new URLSearchParams({
+    nota_id: `eq.${notaId}`,
+    select: 'type,content,bold,align,format',
+    order: 'urut',
+    apikey: ANON_KEY
+  });
+  return `${base}?${params}`;
 }
 
-// Buka skema khusus Android agar aplikasi Bluetooth Print menangkap URL lalu mencetak otomatis.
-// Tidak mengubah halaman (pakai iframe tersembunyi), jadi tetap aman di PWA.
 export function bukaCetakBt(notaId) {
   try {
     const url = `my.bluetoothprint.scheme://${strukBtUrl(notaId)}`;
     const f = document.createElement('iframe');
-    f.style.width = '0';
-    f.style.height = '0';
-    f.style.visibility = 'hidden';
-    f.setAttribute('aria-hidden', 'true');
+    f.style.cssText = 'width:0;height:0;border:0;visibility:hidden';
     f.src = url;
     document.body.appendChild(f);
     setTimeout(() => { if (f.parentNode) f.parentNode.removeChild(f); }, 5000);
