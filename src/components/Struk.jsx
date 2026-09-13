@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { fmtTgl, metodeLabel } from '../lib/format';
-import { bukaCetakBt } from '../lib/cetak';
+import { bukaCetakBt, cetakWebBt, putusWebBt } from '../lib/cetak';
 
 export default function StrukModal({ p, onClose }) {
   const [items, setItems] = useState([]);
   const [btOn, setBtOn] = useState(() => localStorage.getItem('printBt') !== '0');
+  const [st, setSt] = useState('');
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('printBt', btOn ? '1' : '0');
@@ -28,16 +30,59 @@ export default function StrukModal({ p, onClose }) {
     }
   }, [p.id, p.lunas, btOn]);
 
+  const barisStruk = useCallback(() => [
+    { text: 'DAYANG RESTO', center: true, width: true },
+    { text: 'Jl. Raya Dayang, Pangkalan Karang', center: true },
+    { text: String(p.id) },
+    { text: fmtTgl(p.tanggal) },
+    { text: 'Kasir: ' + (p.nama_kasir || '-') },
+    ...(p.lunas === false ? [{ text: 'STATUS: BELUM DIBAYAR' }] : []),
+    { text: '===============================' },
+    ...items.flatMap((it) => [
+      { text: `${Number(it.qty)} ${it.nama}` },
+      { text: Number(it.subtotal).toLocaleString('id-ID') }
+    ]),
+    { text: '===============================' },
+    { text: 'TOTAL', width: true },
+    { text: Number(p.total).toLocaleString('id-ID'), width: true },
+    ...(p.lunas !== false
+      ? [
+          { text: 'Metode: ' + metodeLabel(p.metode) },
+          { text: 'Bayar: ' + Number(p.bayar).toLocaleString('id-ID') },
+          { text: 'Kembalian: ' + Number(p.kembalian).toLocaleString('id-ID') }
+        ]
+      : []),
+    { text: '===============================' },
+    { text: 'Terima kasih', center: true },
+    { text: 'Semoga harimu menyenangkan', center: true }
+  ], [p, items]);
+
+  async function cetakWeb() {
+    setBusy(true);
+    setSt('Menghubungkan…');
+    try {
+      const nama = await cetakWebBt(barisStruk());
+      setSt('Tercetak ke ' + nama + ' ✓');
+    } catch (e) {
+      setSt('Gagal: ' + e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="card struk-btns">
         <label className="chk">
           <input type="checkbox" checked={btOn} onChange={(e) => setBtOn(e.target.checked)} />
-          Cetak otomatis ke printer BT
+          Cetak otomatis (Bluetooth Print)
         </label>
-        <button className="btn btn-primary" onClick={() => bukaCetakBt(p.id)}>🖨️ Cetak BT</button>
+        <button className="btn btn-primary" disabled={busy} onClick={cetakWeb}>🖨️ Cetak BT Web</button>
+        <button className="btn" onClick={() => bukaCetakBt(p.id)}>📡 Cetak App</button>
         <button className="btn" onClick={() => window.print()}>🖨️ Cetak Browser</button>
+        <button className="btn" onClick={() => { putusWebBt(); setSt(''); }}>Putus BT</button>
         <button className="btn" onClick={onClose}>Tutup</button>
+        {st && <div className={'cetak-st ' + (st.includes('✓') ? 'ok' : 'err')}>{st}</div>}
       </div>
       <div className="print-wrap">
         <div id="print-area" className="struk">
