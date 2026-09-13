@@ -127,3 +127,16 @@ function wsHelper(wb, name, cols, rows) {
   ws.getRow(1).font = { bold: true };
   return ws;
 }
+
+// rows: [{ nama, satuan, qty, stok }] pemakaian bahan dari transaksi
+export async function exportPemakaian(rows, fileName = 'pemakaian-stok.xlsx') {
+  const wb = bukaBuku();
+  wsHelper(wb, 'Pemakaian', [
+    { header: 'Bahan', key: 'nama', width: 26 },
+    { header: 'Satuan', key: 'satuan', width: 10 },
+    { header: 'Terpakai', key: 'qty', width: 14, style: { numFmt: '#,##0.00' } },
+    { header: 'Stok Sekarang', key: 'stok', width: 14, style: { numFmt: '#,##0.00' } }
+  ], rows);
+  const buf = await wb.xlsx.writeBuffer();
+  unduh(buf, fileName);
+}

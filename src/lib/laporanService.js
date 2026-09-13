@@ -115,3 +115,39 @@ export function agregasiMutasi({ masuk, keluar }, mode) {
   }));
   return { periode, bahan };
 }
+
+// Pemakaian bahan dari transaksi (closingan): Σ qty item × resep per bahan
+export async function pemakaianTanggal(tgl) {
+  const pesanan = await transaksiRentang(tgl, tgl);
+  const nota = pesanan.length;
+  const pendapatan = pesanan.reduce((s, p) => s + Number(p.total), 0);
+  const items = pesanan.flatMap((p) => p.items || []);
+  const menuIds = [...new Set(items.map((i) => i.produk_id).filter(Boolean))];
+  if (!menuIds.length) return { nota, pendapatan, bahan: [] };
+
+  const [{ data: resep }, { data: produk }] = await Promise.all([
+    supabase.from('resto_resep').select('produk_id,bahan_id,qty').in('produk_id', menuIds),
+    supabase.from('resto_produk').select('id,nama,satuan,stok').eq('jenis', 'bahan')
+  ]);
+
+  const usage = {};
+  for (const it of items) {
+    const q = Number(it.qty) || 1;
+    for (const r of resep || []) {
+      if (r.produk_id === it.produk_id) usage[r.bahan_id] = (usage[r.bahan_id] || 0) + (Number(r.qty) || 0) * q;
+    }
+  }
+  const bmap = {};
+  for (const b of produk || []) bmap[b.id] = b;
+
+  const bahan = Object.entries(usage)
+    .map(([id, qty]) => ({
+      bahan_id: Number(id),
+      nama: bmap[id]?.nama || '#' + id,
+      satuan: bmap[id]?.satuan || '',
+      qty,
+      stok: Number(bmap[id]?.stok) || 0
+    }))
+    .sort((a, b) => b.qty - a.qty);
+  return { nota, pendapatan, bahan };
+}

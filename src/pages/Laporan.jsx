@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react';
-import { laporanStok, rekapHarian, transaksiTanggal, absensiRentang, transaksiRentang, mutasiStokBahan, agregasiMutasi } from '../lib/laporanService';
-import { exportLaporanStok, exportRekapHarian, exportTransaksi, exportAbsensi, exportMutasiStok } from '../lib/excelExport';
+import { laporanStok, rekapHarian, transaksiTanggal, absensiRentang, transaksiRentang, mutasiStokBahan, agregasiMutasi, pemakaianTanggal } from '../lib/laporanService';
+import { exportLaporanStok, exportRekapHarian, exportTransaksi, exportAbsensi, exportMutasiStok, exportPemakaian } from '../lib/excelExport';
 import { uang, todayStr, fmtTgl } from '../lib/format';
 import { useSupabaseQuery } from '../lib/useSupabaseQuery';
 
-const TABS = ['Stok', 'Rekap Harian', 'Transaksi', 'Absensi', 'Stok Masuk/Keluar'];
+const TABS = ['Stok', 'Rekap Harian', 'Transaksi', 'Absensi', 'Stok Masuk/Keluar', 'Pemakaian Stok'];
 const MODE_LABEL = { harian: 'Harian', mingguan: 'Mingguan', bulanan: 'Bulanan' };
 
 export default function Laporan() {
@@ -21,6 +21,7 @@ export default function Laporan() {
   const transQ = useSupabaseQuery(() => transaksiTanggal(tgl), [tgl]);
   const absQ = useSupabaseQuery(() => absensiRentang(dari, sampai), [dari, sampai]);
   const mutQ = useSupabaseQuery(() => mutasiStokBahan(dari, sampai), [dari, sampai]);
+  const pemQ = useSupabaseQuery(() => pemakaianTanggal(tgl), [tgl]);
 
   const mutAgg = useMemo(() =>
     agregasiMutasi(mutQ.data || { masuk: [], keluar: [] }, mode),
@@ -164,6 +165,30 @@ export default function Laporan() {
                   ))}
                 </div>
               )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === 'Pemakaian Stok' && (
+        <div className="card">
+          <div className="bar">
+            <input className="input" type="date" value={tgl} onChange={(e) => setTgl(e.target.value)} />
+            <button className="btn" disabled={busy} onClick={() => run('p', () => exportPemakaian(pemQ.data?.bahan || [], `pemakaian-stok-${tgl}.xlsx`))}>⬇️ Excel</button>
+          </div>
+          <div className="f-row">
+            <span className="total-line">Nota: <b>{pemQ.data?.nota ?? 0}</b> transaksi</span>
+            <span className="total-line">Pendapatan: <b>{uang(pemQ.data?.pendapatan ?? 0)}</b></span>
+          </div>
+          <p className="muted small">Bahan terpakai {tgl} dihitung otomatis dari transaksi × resep:</p>
+          {(pemQ.data?.bahan?.length === 0 || !pemQ.data) && <p className="muted">Belum ada transaksi pada tanggal ini.</p>}
+          {pemQ.data?.bahan.map((b) => (
+            <div className="row" key={b.bahan_id}>
+              <div className="row-main">
+                <div><b>{b.nama}</b> <span className="muted small">({b.satuan})</span></div>
+                <div className="muted small">Stok sekarang: {Number(b.stok).toLocaleString('id-ID')} {b.satuan}</div>
+              </div>
+              <div className="row-end"><b>{Number(b.qty).toLocaleString('id-ID')}</b> terpakai</div>
             </div>
           ))}
         </div>
