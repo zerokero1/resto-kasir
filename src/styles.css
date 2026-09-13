@@ -245,7 +245,9 @@ body {
   width: 100%;
   max-width: 420px;
 }
-.struk-btns { display: flex; gap: 12px; align-items: center; }
+.struk-btns { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); user-select: none; }
+.chk input { width: 15px; height: 15px; }
 .print-wrap {
   background: #fff;
   padding: 16px;

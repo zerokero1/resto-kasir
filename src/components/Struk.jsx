@@ -1,9 +1,16 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { fmtTgl, metodeLabel } from '../lib/format';
+import { bukaCetakBt } from '../lib/cetak';
 
 export default function StrukModal({ p, onClose }) {
   const [items, setItems] = useState([]);
+  const [btOn, setBtOn] = useState(() => localStorage.getItem('printBt') !== '0');
+
+  useEffect(() => {
+    localStorage.setItem('printBt', btOn ? '1' : '0');
+  }, [btOn]);
+
   useEffect(() => {
     let on = true;
     supabase
@@ -14,10 +21,22 @@ export default function StrukModal({ p, onClose }) {
     return () => { on = false; };
   }, [p.id]);
 
+  useEffect(() => {
+    if (btOn && p.lunas !== false) {
+      const t = setTimeout(() => bukaCetakBt(p.id), 800);
+      return () => clearTimeout(t);
+    }
+  }, [p.id, p.lunas, btOn]);
+
   return (
     <div className="overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="card struk-btns">
-        <button className="btn btn-primary" onClick={() => window.print()}>🖨️ Cetak</button>
+        <label className="chk">
+          <input type="checkbox" checked={btOn} onChange={(e) => setBtOn(e.target.checked)} />
+          Cetak otomatis ke printer BT
+        </label>
+        <button className="btn btn-primary" onClick={() => bukaCetakBt(p.id)}>🖨️ Cetak BT</button>
+        <button className="btn" onClick={() => window.print()}>🖨️ Cetak Browser</button>
         <button className="btn" onClick={onClose}>Tutup</button>
       </div>
       <div className="print-wrap">
