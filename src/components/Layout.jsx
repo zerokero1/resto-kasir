@@ -12,13 +12,14 @@ const tabs = [
   { to: '/karyawan', label: 'Karyawan', icon: '👥' }
 ];
 
-export default function Layout({ user, children }) {
+export default function Layout({ user, children, onLogout }) {
   const nav = useNavigate();
   const isAdmin = user?.role === 'admin';
 
   async function keluar() {
     await signOut();
     nav('/');
+    if (onLogout) onLogout();
   }
 
   return (

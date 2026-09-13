@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { signIn } from '../lib/authService';
 
-export default function Login() {
+export default function Login({ onLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [err, setErr] = useState('');
@@ -13,6 +13,7 @@ export default function Login() {
     setBusy(true);
     try {
       await signIn(email.trim(), password);
+      await onLogin();
     } catch (ex) {
       setErr(ex.message);
     } finally {

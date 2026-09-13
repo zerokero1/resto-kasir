@@ -6,7 +6,8 @@ function unduh(buffer, nama) {
   a.href = URL.createObjectURL(blob);
   a.download = nama;
   a.click();
-  URL.revokeObjectURL(a.href);
+  // tunda revoke agar browser sempat memulai download (hindari gagal di HP/PWA)
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 
 function bukaBuku() {

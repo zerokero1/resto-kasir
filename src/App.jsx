@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
-import { onAuth, getProfile } from './lib/authService';
+import { getProfile, onAuth, loadLogin } from './lib/authService';
 import Login from './pages/Login';
 import Layout from './components/Layout';
 import POS from './pages/POS';
@@ -16,23 +16,16 @@ export default function App() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    getProfile().then((p) => {
-      setUser(p);
-      setReady(true);
-    });
-    const sub = onAuth(async (u) => {
-      if (u) {
-        const p = await getProfile();
-        setUser(p);
-      } else {
-        setUser(null);
-      }
-    });
+    // Pulihkan login dari cache secepat mungkin (tidak menunggu sesi supabase),
+    // lalu update bila akun masih valid. Sesi gagal refresh TIDAK menghapus login.
+    setUser(loadLogin());
+    getProfile().then((p) => { setUser(p); setReady(true); });
+    const sub = onAuth(() => {});
     return () => sub.data?.unsubscribe?.();
   }, []);
 
   if (!ready) return <div className="splash">Resto Kasir…</div>;
-  if (!user) return <Login />;
+  if (!user) return <Login onLogin={async () => setUser(await getProfile())} />;
 
   return (
     <Layout user={user} onLogout={() => setUser(null)}>
