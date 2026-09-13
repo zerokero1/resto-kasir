@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { laporanStok, rekapHarian, transaksiTanggal, absensiRentang, transaksiRentang } from '../lib/laporanService';
 import { exportLaporanStok, exportRekapHarian, exportTransaksi, exportAbsensi } from '../lib/excelExport';
-import { uang, todayStr, fmtTgl } from '../lib/format';
+import { uang, todayStr, fmtTgl, metodeLabel } from '../lib/format';
 import { useSupabaseQuery } from '../lib/useSupabaseQuery';
 
 const TABS = ['Stok', 'Rekap Harian', 'Transaksi', 'Absensi'];
@@ -80,7 +80,7 @@ export default function Laporan() {
             <div className="row" key={p.id}>
               <div className="row-main">
                 <div><b>{p.id}</b></div>
-                <div className="muted small">{fmtTgl(p.tanggal)} • {p.nama_kasir || '-'} • {p.metode}</div>
+                <div className="muted small">{fmtTgl(p.tanggal)} • {p.nama_kasir || '-'} • {metodeLabel(p.metode)}</div>
               </div>
               <div className="row-end"><b>{uang(p.total)}</b></div>
             </div>

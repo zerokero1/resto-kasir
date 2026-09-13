@@ -16,6 +16,11 @@ export function fmtTgl(ts) {
     ' ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 }
 
+const METODE = { tunai: 'Tunai', qris: 'QRIS', debit: 'Kartu/Cardless', hutang: 'Hutang' };
+export function metodeLabel(m) {
+  return METODE[m] || m;
+}
+
 export function todayStr() {
   const d = new Date();
   const y = d.getFullYear();

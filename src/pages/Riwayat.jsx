@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { transaksiTanggal, transaksiRentang } from '../lib/laporanService';
 import { exportTransaksi } from '../lib/excelExport';
-import { uang, todayStr, fmtTgl } from '../lib/format';
+import { uang, todayStr, fmtTgl, metodeLabel } from '../lib/format';
 import StrukModal from '../components/Struk';
 
 export default function Riwayat() {
@@ -51,7 +51,7 @@ export default function Riwayat() {
           <div className="row" key={p.id} onClick={() => setView(p)}>
             <div className="row-main">
               <div><b>{p.id}</b></div>
-              <div className="muted small">{fmtTgl(p.tanggal)} • {p.nama_kasir || '-'} • <span className="cap">{p.metode}</span></div>
+              <div className="muted small">{fmtTgl(p.tanggal)} • {p.nama_kasir || '-'} • {metodeLabel(p.metode)}{p.lunas === false ? ' • ⏳ belum dibayar' : ''}</div>
             </div>
             <div className="row-end"><b>{uang(p.total)}</b><span className="muted small">lihat ›</span></div>
           </div>

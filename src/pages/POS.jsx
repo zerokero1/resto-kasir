@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ambilProduk, KELOMPOK_POS } from '../lib/produkService';
 import { simpanPesanan } from '../lib/pesananService';
-import { uang, fmtTgl } from '../lib/format';
+import { uang, fmtTgl, metodeLabel } from '../lib/format';
 import StrukModal from '../components/Struk';
 
 export default function POS({ user }) {
@@ -109,7 +109,7 @@ export default function POS({ user }) {
           <div className="metodes">
             {['tunai','qris','debit','hutang'].map((m) => (
               <button key={m} className={'chip' + (metode === m ? ' on' : '')} onClick={() => setMetode(m)}>
-                {m === 'tunai' ? 'Tunai' : m === 'qris' ? 'QRIS' : m === 'debit' ? 'Debit' : 'Hutang'}
+                {metodeLabel(m)}
               </button>
             ))}
           </div>

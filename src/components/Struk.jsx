@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { fmtTgl } from '../lib/format';
+import { fmtTgl, metodeLabel } from '../lib/format';
 
 export default function StrukModal({ p, onClose }) {
   const [items, setItems] = useState([]);
@@ -37,7 +37,7 @@ export default function StrukModal({ p, onClose }) {
           ))}
           <div className="s-rule" />
           <div className="s-item"><b>TOTAL</b><b>{Number(p.total).toLocaleString('id-ID')}</b></div>
-          <div className="s-item"><span>Metode</span><span className="cap">{p.metode}</span></div>
+          <div className="s-item"><span>Metode</span><span>{metodeLabel(p.metode)}</span></div>
           <div className="s-item"><span>Bayar</span><span>{Number(p.bayar).toLocaleString('id-ID')}</span></div>
           <div className="s-item"><span>Kembalian</span><span>{Number(p.kembalian).toLocaleString('id-ID')}</span></div>
           <div className="s-rule" />
