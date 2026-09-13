@@ -1,13 +1,14 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { fmtTgl, metodeLabel } from '../lib/format';
-import { bukaCetakBt, cetakWebBt, putusWebBt } from '../lib/cetak';
+import { bukaCetakBt, cetakWebBt, putusWebBt, cetakViaApk, bridgeApkAda } from '../lib/cetak';
 
 export default function StrukModal({ p, onClose }) {
   const [items, setItems] = useState([]);
   const [btOn, setBtOn] = useState(() => localStorage.getItem('printBt') !== '0');
   const [st, setSt] = useState('');
   const [busy, setBusy] = useState(false);
+  const diApk = bridgeApkAda();
 
   useEffect(() => {
     localStorage.setItem('printBt', btOn ? '1' : '0');
@@ -22,13 +23,6 @@ export default function StrukModal({ p, onClose }) {
       .then(({ data }) => { if (on) setItems(data || []); });
     return () => { on = false; };
   }, [p.id]);
-
-  useEffect(() => {
-    if (btOn && p.lunas !== false) {
-      const t = setTimeout(() => bukaCetakBt(p.id), 800);
-      return () => clearTimeout(t);
-    }
-  }, [p.id, p.lunas, btOn]);
 
   const barisStruk = useCallback(() => [
     { text: 'DAYANG RESTO', center: true, width: true },
@@ -57,6 +51,19 @@ export default function StrukModal({ p, onClose }) {
     { text: 'Semoga harimu menyenangkan', center: true }
   ], [p, items]);
 
+  // Cetak otomatis setelah pembayaran: pakai APK bila dalam APK, else aplikasi Bluetooth Print.
+  useEffect(() => {
+    if (btOn && p.lunas !== false && items.length > 0) {
+      const t = setTimeout(() => {
+        try {
+          if (diApk) cetakViaApk(barisStruk());
+          else bukaCetakBt(p.id);
+        } catch (e) { setSt('Gagal: ' + e.message); }
+      }, 800);
+      return () => clearTimeout(t);
+    }
+  }, [p.id, p.lunas, btOn, items, diApk, barisStruk]);
+
   async function cetakWeb() {
     setBusy(true);
     setSt('Menghubungkan…');
@@ -70,17 +77,39 @@ export default function StrukModal({ p, onClose }) {
     }
   }
 
+  function cetakApk() {
+    setBusy(true);
+    setSt('Mengirim struk ke printer…');
+    try {
+      cetakViaApk(barisStruk());
+      setSt('Struk dikirim ✓ (periksa pemberitahuan APK)');
+    } catch (e) {
+      setSt('Gagal: ' + e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="card struk-btns">
         <label className="chk">
           <input type="checkbox" checked={btOn} onChange={(e) => setBtOn(e.target.checked)} />
-          Cetak otomatis (Bluetooth Print)
+          Cetak otomatis ke printer
         </label>
-        <button className="btn btn-primary" disabled={busy} onClick={cetakWeb}>🖨️ Cetak BT Web</button>
-        <button className="btn" onClick={() => bukaCetakBt(p.id)}>📡 Cetak App</button>
-        <button className="btn" onClick={() => window.print()}>🖨️ Cetak Browser</button>
-        <button className="btn" onClick={() => { putusWebBt(); setSt(''); }}>Putus BT</button>
+        {diApk ? (
+          <>
+            <button className="btn btn-primary" disabled={busy} onClick={cetakApk}>🖨️ Cetak APK</button>
+            <button className="btn" onClick={() => window.print()}>🖨️ Cetak Browser</button>
+          </>
+        ) : (
+          <>
+            <button className="btn btn-primary" disabled={busy} onClick={cetakWeb}>🖨️ Cetak BT Web</button>
+            <button className="btn" onClick={() => bukaCetakBt(p.id)}>📡 Cetak App</button>
+            <button className="btn" onClick={() => window.print()}>🖨️ Cetak Browser</button>
+            <button className="btn" onClick={() => { putusWebBt(); setSt(''); }}>Putus BT</button>
+          </>
+        )}
         <button className="btn" onClick={onClose}>Tutup</button>
         {st && <div className={'cetak-st ' + (st.includes('✓') ? 'ok' : 'err')}>{st}</div>}
       </div>

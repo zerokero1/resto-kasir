@@ -101,3 +101,21 @@ export function putusWebBt() {
   perangkatTerhubung = null;
   karakterTulis = null;
 }
+
+// ============ APK Resto Kasir (WebView + bridge AndroidPrint, Bluetooth Classic SPP) ============
+export function bridgeApkAda() {
+  return typeof window !== 'undefined' && !!window.AndroidPrint;
+}
+
+// Cetak lewat APK: kirim Base64 perintah ESC/POS → AndroidPrint.print().
+// Printer Bluetooth Klasik (SPP) — tidak butuh aplikasi pihak ketiga.
+export function cetakViaApk(baris) {
+  if (!bridgeApkAda()) throw new Error('Tidak berjalan di dalam aplikasi Resto Kasir.');
+  const buf = escposBuffer(baris);
+  let s = '';
+  for (let i = 0; i < buf.length; i += 8000) {
+    s += String.fromCharCode.apply(null, buf.subarray(i, i + 8000));
+  }
+  window.AndroidPrint.print(btoa(s));
+  return true;
+}
