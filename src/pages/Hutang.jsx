@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { uang, fmtTgl, metodeLabel } from '../lib/format';
+import { uang, fmtTgl } from '../lib/format';
 import StrukModal from '../components/Struk';
+import PaymentModal from '../components/Payment';
 
 export default function Hutang() {
   const [rows, setRows] = useState([]);
@@ -100,65 +101,6 @@ update public.resto_pesanan set lunas = true where metode &lt;&gt; 'hutang';</pr
 
       {payFor && <PaymentModal p={payFor} onClose={() => setPayFor(null)} onBayar={bayar} busy={busy} />}
       {strukP && <StrukModal p={strukP} onClose={() => setStrukP(null)} />}
-    </div>
-  );
-}
-
-const METODES = [
-  { v: 'tunai', label: '💵 Tunai', desc: 'Bayar langsung dengan uang tunai' },
-  { v: 'debit', label: '💳 Kartu/Cardless', desc: 'Pembayaran lewat kartu (mesin EDC)' },
-  { v: 'qris', label: '📱 QRIS', desc: 'Scan QR pembayaran' }
-];
-
-function PaymentModal({ p, onClose, onBayar, busy }) {
-  const [metode, setMetode] = useState('tunai');
-  const [bayar, setBayar] = useState('');
-  const total = Number(p.total);
-  const uangBayar = Number(bayar) || 0;
-  const kembalian = Math.max(0, uangBayar - total);
-
-  function kirim(e) {
-    e.preventDefault();
-    onBayar(p, metode, bayar);
-  }
-
-  return (
-    <div className="overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="card">
-        <div className="k-head">Terima Pembayaran</div>
-        <div className="total-line">{p.id} — terutang <b>{uang(total)}</b></div>
-        <label className="lbl">Metode pembayaran yang dipilih customer</label>
-        <div className="pay-methods">
-          {METODES.map((m) => (
-            <button key={m.v} className={'pay-m' + (metode === m.v ? ' sel' : '')} onClick={() => setMetode(m.v)}>
-              <span className="pay-ic">{m.label.split(' ')[0]}</span>
-              <span className="pay-lb">{m.label}</span>
-              <span className="pay-ds">{m.desc}</span>
-            </button>
-          ))}
-        </div>
-        {metode === 'tunai' && (
-          <>
-            <label className="lbl">Uang dibayar customer</label>
-            <input className="input" type="number" inputMode="numeric" placeholder="Uang tunai" value={bayar} onChange={(e) => setBayar(e.target.value)} />
-            <div className="f-row">
-              {[total, 50000, 100000].map((q) => (
-                <button key={q} className="btn btn-sm" onClick={() => setBayar(String(q))}>
-                  {q === total ? 'Bayar Pas' : Math.round(q / 1000) + 'rb'}
-                </button>
-              ))}
-            </div>
-            {uangBayar >= total && uangBayar > 0 && (
-              <div className="total-line">Kembalian: <b>{uang(kembalian)}</b></div>
-            )}
-          </>
-        )}
-        <div className="rule" />
-        <div className="f-row end">
-          <button className="btn" onClick={onClose} disabled={busy}>Batal</button>
-          <button className="btn btn-primary" disabled={busy || !metode} onClick={kirim}>{busy ? 'Memproses…' : 'Bayar & Lunas'}</button>
-        </div>
-      </div>
     </div>
   );
 }

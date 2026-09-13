@@ -173,6 +173,19 @@ body {
 .pay-ic { grid-row: span 2; font-size: 22px; }
 .pay-lb { font-weight: 700; font-size: 15px; }
 .pay-ds { font-size: 12px; color: var(--muted); }
+.badge-utang {
+  display: inline-block;
+  margin-left: 6px;
+  background: #fdecea;
+  color: var(--danger);
+  border: 1px solid #f5c6c0;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  vertical-align: middle;
+  text-transform: none;
+}
 
 /* ---------- login ---------- */
 .login { height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(160deg, var(--green), #0c7c62); padding: 16px; }
