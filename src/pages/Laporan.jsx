@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react';
-import { laporanStok, rekapHarian, transaksiTanggal, absensiRentang, transaksiRentang, mutasiStokBahan, agregasiMutasi, pemakaianTanggal } from '../lib/laporanService';
-import { exportLaporanStok, exportRekapHarian, exportTransaksi, exportAbsensi, exportMutasiStok, exportPemakaian } from '../lib/excelExport';
+import { laporanStok, rekapHarian, transaksiTanggal, absensiRentang, transaksiRentang, mutasiStokBahan, agregasiMutasi, pemakaianTanggal, pengeluaranStokHarian } from '../lib/laporanService';
+import { exportLaporanStok, exportRekapHarian, exportTransaksi, exportAbsensi, exportMutasiStok, exportPemakaian, exportPengeluaranStok } from '../lib/excelExport';
 import { uang, todayStr, fmtTgl } from '../lib/format';
 import { useSupabaseQuery } from '../lib/useSupabaseQuery';
 
-const TABS = ['Stok', 'Rekap Harian', 'Transaksi', 'Absensi', 'Stok Masuk/Keluar', 'Pemakaian Stok'];
+const TABS = ['Stok', 'Rekap Harian', 'Transaksi', 'Absensi', 'Stok Masuk/Keluar', 'Pemakaian Stok', 'Pengeluaran Stok'];
 const MODE_LABEL = { harian: 'Harian', mingguan: 'Mingguan', bulanan: 'Bulanan' };
 
 export default function Laporan() {
@@ -22,6 +22,7 @@ export default function Laporan() {
   const absQ = useSupabaseQuery(() => absensiRentang(dari, sampai), [dari, sampai]);
   const mutQ = useSupabaseQuery(() => mutasiStokBahan(dari, sampai), [dari, sampai]);
   const pemQ = useSupabaseQuery(() => pemakaianTanggal(tgl), [tgl]);
+  const pengQ = useSupabaseQuery(() => pengeluaranStokHarian(dari, sampai), [dari, sampai]);
 
   const mutAgg = useMemo(() =>
     agregasiMutasi(mutQ.data || { masuk: [], keluar: [] }, mode),
@@ -189,6 +190,54 @@ export default function Laporan() {
                 <div className="muted small">Stok sekarang: {Number(b.stok).toLocaleString('id-ID')} {b.satuan}</div>
               </div>
               <div className="row-end"><b>{Number(b.qty).toLocaleString('id-ID')}</b> terpakai</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === 'Pengeluaran Stok' && (
+        <div className="card">
+          <div className="bar">
+            <input className="input" type="date" value={dari} onChange={(e) => setDari(e.target.value)} />
+            <input className="input" type="date" value={sampai} onChange={(e) => setSampai(e.target.value)} />
+            <button className="btn" disabled={busy} onClick={async () => {
+              const rows = (pengQ.data || []).flatMap((d) =>
+                (d.bahan.length ? d.bahan : [{ nama: '-', satuan: '', masuk: 0, keluar: 0, sisa: 0 }]).map((b) => ({
+                  tanggal: d.tanggal, j_masuk: d.masuk, j_keluar: d.keluar,
+                  nama: b.nama, satuan: b.satuan, masuk: b.masuk, keluar: b.keluar, sisa: b.sisa
+                }))
+              );
+              await exportPengeluaranStok(rows, `pengeluaran-stok-${dari}-${sampai}.xlsx`);
+            }}>⬇️ Excel</button>
+          </div>
+          {pengQ.data?.length === 0 && <p className="muted">Belum ada mutasi pada rentang ini.</p>}
+          {pengQ.data?.map((d) => (
+            <div key={d.tanggal}>
+              <div className="row" onClick={() => setOpenId(openId === d.tanggal ? null : d.tanggal)}>
+                <div className="row-main">
+                  <div><b>{d.tanggal}</b> <span className="muted small">({d.bahan.length} bahan)</span></div>
+                  <div className="muted small">Keluar = pemakaian penjualan • Masuk = pembelian barang</div>
+                </div>
+                <div className="row-end">
+                  <div><span className="badge">+{Number(d.masuk).toLocaleString('id-ID')} masuk</span></div>
+                  <div><b>−{Number(d.keluar).toLocaleString('id-ID')} keluar</b></div>
+                </div>
+              </div>
+              {openId === d.tanggal && (
+                <div className="mut-detail">
+                  {d.bahan.map((b) => (
+                    <div className="p-row" key={b.bahan_id}>
+                      <b>{b.nama} <span className="muted small">({b.satuan})</span></b>
+                      <span className="p-cell">+{Number(b.masuk).toLocaleString('id-ID')}</span>
+                      <span className="p-cell">−{Number(b.keluar).toLocaleString('id-ID')}</span>
+                      <span className="p-cell"><b>{Number(b.sisa).toLocaleString('id-ID')}</b></span>
+                    </div>
+                  ))}
+                  <div className="p-row muted small">
+                    <span>Masuk ÷ Keluar ÷ Sisa stok</span>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>

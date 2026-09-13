@@ -140,3 +140,23 @@ export async function exportPemakaian(rows, fileName = 'pemakaian-stok.xlsx') {
   const buf = await wb.xlsx.writeBuffer();
   unduh(buf, fileName);
 }
+
+// rows: [{ tanggal, bahan, satuan, masuk, keluar, sisa }] pengeluaran stok harian
+export async function exportPengeluaranStok(rows, fileName = 'pengeluaran-stok.xlsx') {
+  const wb = bukaBuku();
+  const ws = wb.addWorksheet('Rekap');
+  ws.columns = [
+    { header: 'Tanggal', key: 'tanggal', width: 14 },
+    { header: 'Jumlah Masuk', key: 'j_masuk', width: 14, style: { numFmt: '#,##0.00' } },
+    { header: 'Jumlah Keluar', key: 'j_keluar', width: 14, style: { numFmt: '#,##0.00' } },
+    { header: 'Bahan', key: 'nama', width: 26 },
+    { header: 'Satuan', key: 'satuan', width: 10 },
+    { header: 'Masuk', key: 'masuk', width: 12, style: { numFmt: '#,##0.00' } },
+    { header: 'Keluar', key: 'keluar', width: 12, style: { numFmt: '#,##0.00' } },
+    { header: 'Sisa Stok', key: 'sisa', width: 12, style: { numFmt: '#,##0.00' } }
+  ];
+  for (const r of rows) ws.addRow(r);
+  ws.getRow(1).font = { bold: true };
+  const buf = await wb.xlsx.writeBuffer();
+  unduh(buf, fileName);
+}

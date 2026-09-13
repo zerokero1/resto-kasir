@@ -151,3 +151,76 @@ export async function pemakaianTanggal(tgl) {
     .sort((a, b) => b.qty - a.qty);
   return { nota, pendapatan, bahan };
 }
+
+/**
+ * Pengeluaran Stok harian:
+ *  - keluar : dihitung otomatis dari penjualan makanan/minuman (orders × resep)
+ *  - masuk  : inputan pembelian barang per hari (resto_barang_masuk)
+ *  - sisa   : stok bahan baku saat ini (resto_produk.stok)
+ * Mengembalikan array per tanggal: { tanggal, masuk, keluar, bahan:[{nama,satuan,masuk,keluar,sisa}] }
+ */
+export async function pengeluaranStokHarian(dari, sampai) {
+  let resep = [];
+  const [pesanan, masuk] = await Promise.all([
+    transaksiRentang(dari, sampai),
+    supabase
+      .from('resto_barang_masuk')
+      .select('bahan_id, qty, tanggal')
+      .gte('tanggal', dari + 'T00:00:00')
+      .lte('tanggal', sampai + 'T23:59:59')
+  ]);
+  if (masuk.error) throw new Error(masuk.error.message);
+
+  const items = pesanan.flatMap((p) =>
+    (p.items || []).map((it) => ({ ...it, hari: (p.tanggal || '').slice(0, 10), q: Number(it.qty) || 1 }))
+  );
+  const menuIds = [...new Set(items.map((i) => i.produk_id).filter(Boolean))];
+  if (menuIds.length) {
+    const r = await supabase.from('resto_resep').select('produk_id,bahan_id,qty').in('produk_id', menuIds);
+    if (r.error) throw new Error(r.error.message);
+    resep = r.data || [];
+  }
+  const { data: bahanList } = await supabase.from('resto_produk').select('id,nama,satuan,stok').eq('jenis', 'bahan');
+  const bmap = {};
+  for (const b of bahanList || []) bmap[b.id] = b;
+
+  const keluarPer = {};
+  for (const it of items) {
+    for (const r of resep) {
+      if (r.produk_id === it.produk_id) {
+        if (!keluarPer[it.hari]) keluarPer[it.hari] = {};
+        keluarPer[it.hari][r.bahan_id] = (keluarPer[it.hari][r.bahan_id] || 0) + (Number(r.qty) || 0) * it.q;
+      }
+    }
+  }
+
+  const masukPer = {};
+  for (const m of masuk.data || []) {
+    const hari = (m.tanggal || '').slice(0, 10);
+    if (!masukPer[hari]) masukPer[hari] = {};
+    masukPer[hari][m.bahan_id] = (masukPer[hari][m.bahan_id] || 0) + (Number(m.qty) || 0);
+  }
+
+  const hariSet = new Set([...Object.keys(keluarPer), ...Object.keys(masukPer)]);
+  return [...hariSet]
+    .sort()
+    .map((hari) => {
+      const ids = new Set([...Object.keys(keluarPer[hari] || {}), ...Object.keys(masukPer[hari] || {})]);
+      const bahan = [...ids]
+        .map((id) => {
+          const b = bmap[id] || { nama: '#' + id, satuan: '' };
+          return {
+            bahan_id: Number(id),
+            nama: b.nama,
+            satuan: b.satuan || '',
+            masuk: Number(masukPer[hari]?.[id]) || 0,
+            keluar: Number(keluarPer[hari]?.[id]) || 0,
+            sisa: Number(b.stok) || 0
+          };
+        })
+        .sort((a, b) => b.keluar - a.keluar || b.masuk - a.masuk);
+      const j = { masuk: 0, keluar: 0 };
+      for (const x of bahan) { j.masuk += x.masuk; j.keluar += x.keluar; }
+      return { tanggal: hari, ...j, bahan };
+    });
+}
