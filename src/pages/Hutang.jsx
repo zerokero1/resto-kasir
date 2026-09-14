@@ -65,8 +65,8 @@ export default function Hutang() {
     return (
       <div className="page">
         <div className="card">
-          <div className="k-head">⏳ Hutang</div>
-          <p className="muted">Daftar hutang belum aktif.</p>
+          <div className="k-head">⏳ Belum Bayar</div>
+          <p className="muted">Daftar belum bayar belum aktif.</p>
           <p className="small">Jalankan dulu di <b>SQL Editor</b> Supabase proyek resto-kasir:</p>
           <pre className="sql-box">alter table public.resto_pesanan add column if not exists lunas boolean not null default false;
 update public.resto_pesanan set lunas = true where metode &lt;&gt; 'hutang';</pre>

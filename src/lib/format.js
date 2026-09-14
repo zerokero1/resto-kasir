@@ -16,7 +16,7 @@ export function fmtTgl(ts) {
     ' ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 }
 
-const METODE = { tunai: 'Tunai', qris: 'QRIS', debit: 'Kartu/Cardless', hutang: 'Hutang' };
+const METODE = { tunai: 'Tunai', qris: 'QRIS', debit: 'Kartu/Cardless', hutang: 'Belum Bayar' };
 export function metodeLabel(m) {
   return METODE[m] || m;
 }

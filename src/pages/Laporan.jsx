@@ -77,7 +77,7 @@ export default function Laporan() {
           {rekapQ.data?.map((r) => (
             <div className="row" key={r.tanggal}>
               <div className="row-main"><b>{r.tanggal}</b><div className="muted small">{r.jumlah} transaksi</div></div>
-              <div className="row-end"><b>{uang(r.total)}</b><span className="muted small">T:{r.tunai} Q:{r.qris} D:{r.debit} H:{r.hutang}</span></div>
+              <div className="row-end"><b>{uang(r.total)}</b><span className="muted small">T:{r.tunai} Q:{r.qris} D:{r.debit} BB:{r.hutang}</span></div>
             </div>
           ))}
         </div>

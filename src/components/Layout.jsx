@@ -6,7 +6,7 @@ const tabs = [
   { to: '/', label: 'Kasir', icon: '🛒' },
   { to: '/dashboard', label: 'Dashboard', icon: '📈', admin: true },
   { to: '/riwayat', label: 'Riwayat', icon: '🧾' },
-  { to: '/hutang', label: 'Hutang', icon: '⏳' },
+  { to: '/hutang', label: 'Belum Bayar', icon: '⏳' },
   { to: '/stok', label: 'Stok', icon: '📦' },
   { to: '/produk', label: 'Produk', icon: '🍽️' },
   { to: '/laporan', label: 'Laporan', icon: '📊' },

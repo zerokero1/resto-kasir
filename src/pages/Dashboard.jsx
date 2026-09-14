@@ -87,7 +87,7 @@ export default function Dashboard() {
             <div className="dash-sub">{total ? Math.round((tots.debit / total) * 100) : 0}%</div>
           </div>
           <div className="dash-card">
-            <div className="dash-label">Hutang</div>
+            <div className="dash-label">Belum Bayar</div>
             <div className="dash-val">{uang(tots.hutang)}</div>
             <div className="dash-sub">{total ? Math.round((tots.hutang / total) * 100) : 0}%</div>
           </div>
@@ -102,7 +102,7 @@ export default function Dashboard() {
           <div className="row" key={r.periode}>
             <div className="row-main">
               <b>{labelPeriode(r.periode, mode)}</b>
-              <div className="muted small">{r.jumlah} transaksi • T:{uang(r.tunai)} Q:{uang(r.qris)} D:{uang(r.debit)} H:{uang(r.hutang)}</div>
+              <div className="muted small">{r.jumlah} transaksi • T:{uang(r.tunai)} Q:{uang(r.qris)} D:{uang(r.debit)} BB:{uang(r.hutang)}</div>
             </div>
             <div className="row-end"><b>{uang(r.total)}</b></div>
           </div>
