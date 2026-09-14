@@ -47,6 +47,24 @@ export async function rekapHarian(dari, sampai) {
   return Object.values(map).sort((a, b) => a.tanggal.localeCompare(b.tanggal));
 }
 
+// Pemasukan per periode (menu: 'harian' | 'mingguan' | 'bulanan') untuk dashboard admin
+export async function rekapPeriode(dari, sampai, mode) {
+  const harian = await rekapHarian(dari, sampai);
+  const map = {};
+  for (const h of harian) {
+    const k = periodKey(h.tanggal + 'T00:00:00Z', mode);
+    if (!map[k]) map[k] = { periode: k, jumlah: 0, total: 0, tunai: 0, qris: 0, debit: 0, hutang: 0 };
+    const q = map[k];
+    q.jumlah += h.jumlah;
+    q.total += h.total;
+    q.tunai += h.tunai;
+    q.qris += h.qris;
+    q.debit += h.debit;
+    q.hutang += h.hutang;
+  }
+  return Object.values(map).sort((a, b) => a.periode.localeCompare(b.periode));
+}
+
 export async function absensiRentang(dari, sampai) {
   const { data, error } = await supabase
     .from('resto_absensi')

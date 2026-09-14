@@ -4,12 +4,13 @@ import { hariIni } from '../lib/format';
 
 const tabs = [
   { to: '/', label: 'Kasir', icon: '🛒' },
+  { to: '/dashboard', label: 'Dashboard', icon: '📈', admin: true },
   { to: '/riwayat', label: 'Riwayat', icon: '🧾' },
   { to: '/hutang', label: 'Hutang', icon: '⏳' },
   { to: '/stok', label: 'Stok', icon: '📦' },
   { to: '/produk', label: 'Produk', icon: '🍽️' },
   { to: '/laporan', label: 'Laporan', icon: '📊' },
-  { to: '/karyawan', label: 'Karyawan', icon: '👥' }
+  { to: '/karyawan', label: 'Karyawan', icon: '👥', admin: true }
 ];
 
 export default function Layout({ user, children, onLogout }) {
@@ -38,7 +39,7 @@ export default function Layout({ user, children, onLogout }) {
       <main className="content">{children}</main>
       <nav className="bottombar">
         {tabs.map((t) =>
-          (t.to === '/karyawan' && !isAdmin) ? null : (
+          (t.admin && !isAdmin) ? null : (
             <NavLink key={t.to} to={t.to} className={({ isActive }) => 'tab' + (isActive ? ' active' : '')}>
               <span className="tab-ic">{t.icon}</span>
               <span>{t.label}</span>

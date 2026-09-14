@@ -10,6 +10,7 @@ import Stok from './pages/Stok';
 import Produk from './pages/Produk';
 import Laporan from './pages/Laporan';
 import Karyawan from './pages/Karyawan';
+import Dashboard from './pages/Dashboard';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -31,6 +32,7 @@ export default function App() {
     <Layout user={user} onLogout={() => setUser(null)}>
       <Routes>
         <Route path="/" element={<POS user={user} />} />
+        <Route path="/dashboard" element={user.role === 'admin' ? <Dashboard /> : null} />
         <Route path="/riwayat" element={<Riwayat />} />
         <Route path="/hutang" element={<Hutang />} />
         <Route path="/stok" element={<Stok user={user} />} />
