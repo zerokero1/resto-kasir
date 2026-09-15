@@ -11,6 +11,7 @@ export async function laporanStok() {
 }
 
 export async function transaksiTanggal(tgl) {
+  if (!tgl) return [];
   const { data, error } = await supabase
     .from('resto_pesanan')
     .select('*')
@@ -22,6 +23,7 @@ export async function transaksiTanggal(tgl) {
 }
 
 export async function transaksiRentang(dari, sampai) {
+  if (!dari || !sampai) return [];
   const { data, error } = await supabase
     .from('resto_pesanan')
     .select('*, items:resto_pesanan_item(*)')
@@ -33,6 +35,7 @@ export async function transaksiRentang(dari, sampai) {
 }
 
 export async function rekapHarian(dari, sampai) {
+  if (!dari || !sampai) return [];
   const { data, error } = await supabase.from('resto_pesanan').select('tanggal, total, metode').gte('tanggal', dari + 'T00:00:00').lte('tanggal', sampai + 'T23:59:59');
   if (error) throw new Error(error.message);
   const map = {};
@@ -66,6 +69,7 @@ export async function rekapPeriode(dari, sampai, mode) {
 }
 
 export async function absensiRentang(dari, sampai) {
+  if (!dari || !sampai) return [];
   const { data, error } = await supabase
     .from('resto_absensi')
     .select('*, karyawan:karyawan_id(nama)')
@@ -90,6 +94,7 @@ export function periodKey(ts, mode) {
 }
 
 export async function mutasiStokBahan(dari, sampai) {
+  if (!dari || !sampai) return { masuk: [], keluar: [] };
   const [m, k] = await Promise.all([
     supabase
       .from('resto_barang_masuk')
@@ -136,6 +141,7 @@ export function agregasiMutasi({ masuk, keluar }, mode) {
 
 // Pemakaian bahan dari transaksi (closingan): Σ qty item × resep per bahan
 export async function pemakaianTanggal(tgl) {
+  if (!tgl) return { nota: 0, pendapatan: 0, bahan: [] };
   const pesanan = await transaksiRentang(tgl, tgl);
   const nota = pesanan.length;
   const pendapatan = pesanan.reduce((s, p) => s + Number(p.total), 0);
@@ -178,6 +184,7 @@ export async function pemakaianTanggal(tgl) {
  * Mengembalikan array per tanggal: { tanggal, masuk, keluar, bahan:[{nama,satuan,masuk,keluar,sisa}] }
  */
 export async function pengeluaranStokHarian(dari, sampai) {
+  if (!dari || !sampai) return [];
   let resep = [];
   const [pesanan, masuk] = await Promise.all([
     transaksiRentang(dari, sampai),

@@ -7,6 +7,10 @@ import { useSupabaseQuery } from '../lib/useSupabaseQuery';
 const TABS = ['Stok', 'Rekap Harian', 'Transaksi', 'Absensi', 'Stok Masuk/Keluar', 'Pemakaian Stok', 'Pengeluaran Stok'];
 const MODE_LABEL = { harian: 'Harian', mingguan: 'Mingguan', bulanan: 'Bulanan' };
 
+function Memuat({ q }) {
+  return q.loading ? <p className="muted">Memuat…</p> : null;
+}
+
 export default function Laporan() {
   const [tab, setTab] = useState('Stok');
   const [dari, setDari] = useState(todayStr());
@@ -39,6 +43,14 @@ export default function Laporan() {
     try { await fn(); } finally { setBusy(false); }
   }
 
+  const activeError = tab === 'Stok' ? stokQ.error
+    : tab === 'Rekap Harian' ? rekapQ.error
+    : tab === 'Transaksi' ? transQ.error
+    : tab === 'Absensi' ? absQ.error
+    : tab === 'Stok Masuk/Keluar' ? mutQ.error
+    : tab === 'Pemakaian Stok' ? pemQ.error
+    : pengQ.error;
+
   return (
     <div className="page">
       <div className="metodes">
@@ -46,6 +58,7 @@ export default function Laporan() {
           <button key={t} className={'chip' + (tab === t ? ' on' : '')} onClick={() => setTab(t)}>{t}</button>
         ))}
       </div>
+      {activeError && <div className="err">{activeError.message}</div>}
 
       {tab === 'Stok' && (
         <div className="card">
@@ -70,10 +83,11 @@ export default function Laporan() {
       {tab === 'Rekap Harian' && (
         <div className="card">
           <div className="bar">
-            <input className="input" type="date" value={dari} onChange={(e) => setDari(e.target.value)} />
-            <input className="input" type="date" value={sampai} onChange={(e) => setSampai(e.target.value)} />
+            <input className="input" type="date" value={dari} onChange={(e) => { setDari(e.target.value); setOpenId(null); }} />
+            <input className="input" type="date" value={sampai} onChange={(e) => { setSampai(e.target.value); setOpenId(null); }} />
             <button className="btn" disabled={busy} onClick={() => run('r', () => exportRekapHarian(rekapQ.data || [], `rekap-harian-${dari}-${sampai}.xlsx`))}>⬇️ Excel</button>
           </div>
+          <Memuat q={rekapQ} />
           {rekapQ.data?.map((r) => (
             <div className="row" key={r.tanggal}>
               <div className="row-main"><b>{r.tanggal}</b><div className="muted small">{r.jumlah} transaksi</div></div>
@@ -86,12 +100,13 @@ export default function Laporan() {
       {tab === 'Transaksi' && (
         <div className="card">
           <div className="bar">
-            <input className="input" type="date" value={tgl} onChange={(e) => setTgl(e.target.value)} />
+            <input className="input" type="date" value={tgl} onChange={(e) => { setTgl(e.target.value); setOpenId(null); }} />
             <button className="btn" disabled={busy} onClick={() => run('t', async () => {
               const all = await transaksiRentang(tgl, tgl);
               await exportTransaksi(all, `transaksi-${tgl}.xlsx`);
             })}>⬇️ Excel</button>
           </div>
+          <Memuat q={transQ} />
           {transQ.data?.map((p) => (
             <div className="row" key={p.id}>
               <div className="row-main">
@@ -107,10 +122,11 @@ export default function Laporan() {
       {tab === 'Absensi' && (
         <div className="card">
           <div className="bar">
-            <input className="input" type="date" value={dari} onChange={(e) => setDari(e.target.value)} />
-            <input className="input" type="date" value={sampai} onChange={(e) => setSampai(e.target.value)} />
+            <input className="input" type="date" value={dari} onChange={(e) => { setDari(e.target.value); setOpenId(null); }} />
+            <input className="input" type="date" value={sampai} onChange={(e) => { setSampai(e.target.value); setOpenId(null); }} />
             <button className="btn" disabled={busy} onClick={() => run('a', () => exportAbsensi(absQ.data || [], `absensi-${dari}-${sampai}.xlsx`))}>⬇️ Excel</button>
           </div>
+          <Memuat q={absQ} />
           {absQ.data?.map((r) => (
             <div className="row" key={r.id}>
               <div className="row-main"><b>{r.karyawan?.nama}</b><div className="muted small">{r.tanggal}{r.menit_lembur ? ` • lembur ${r.menit_lembur} mnt` : ''}</div></div>
@@ -123,8 +139,8 @@ export default function Laporan() {
       {tab === 'Stok Masuk/Keluar' && (
         <div className="card">
           <div className="bar">
-            <input className="input" type="date" value={dari} onChange={(e) => setDari(e.target.value)} />
-            <input className="input" type="date" value={sampai} onChange={(e) => setSampai(e.target.value)} />
+            <input className="input" type="date" value={dari} onChange={(e) => { setDari(e.target.value); setOpenId(null); }} />
+            <input className="input" type="date" value={sampai} onChange={(e) => { setSampai(e.target.value); setOpenId(null); }} />
             <button className="btn" disabled={busy} onClick={async () => {
               const rows = mutAgg.bahan.flatMap((b) =>
                 mutAgg.periode.map((p) => ({ periode: p, bahan: b.nama, masuk: b.per[p].masuk, keluar: b.per[p].keluar }))
@@ -132,6 +148,7 @@ export default function Laporan() {
               await exportMutasiStok(rows, `mutasi-stok-${dari}-${sampai}-${mode}.xlsx`);
             }}>⬇️ Excel</button>
           </div>
+          <Memuat q={mutQ} />
           <div className="metodes">
             {Object.keys(MODE_LABEL).map((m) => (
               <button key={m} className={'chip' + (mode === m ? ' on' : '')} onClick={() => setMode(m)}>{MODE_LABEL[m]}</button>
@@ -174,9 +191,10 @@ export default function Laporan() {
       {tab === 'Pemakaian Stok' && (
         <div className="card">
           <div className="bar">
-            <input className="input" type="date" value={tgl} onChange={(e) => setTgl(e.target.value)} />
+            <input className="input" type="date" value={tgl} onChange={(e) => { setTgl(e.target.value); setOpenId(null); }} />
             <button className="btn" disabled={busy} onClick={() => run('p', () => exportPemakaian(pemQ.data?.bahan || [], `pemakaian-stok-${tgl}.xlsx`))}>⬇️ Excel</button>
           </div>
+          <Memuat q={pemQ} />
           <div className="f-row">
             <span className="total-line">Nota: <b>{pemQ.data?.nota ?? 0}</b> transaksi</span>
             <span className="total-line">Pendapatan: <b>{uang(pemQ.data?.pendapatan ?? 0)}</b></span>
@@ -198,8 +216,8 @@ export default function Laporan() {
       {tab === 'Pengeluaran Stok' && (
         <div className="card">
           <div className="bar">
-            <input className="input" type="date" value={dari} onChange={(e) => setDari(e.target.value)} />
-            <input className="input" type="date" value={sampai} onChange={(e) => setSampai(e.target.value)} />
+            <input className="input" type="date" value={dari} onChange={(e) => { setDari(e.target.value); setOpenId(null); }} />
+            <input className="input" type="date" value={sampai} onChange={(e) => { setSampai(e.target.value); setOpenId(null); }} />
             <button className="btn" disabled={busy} onClick={async () => {
               const rows = (pengQ.data || []).flatMap((d) =>
                 (d.bahan.length ? d.bahan : [{ nama: '-', satuan: '', masuk: 0, keluar: 0, sisa: 0 }]).map((b) => ({
@@ -210,6 +228,7 @@ export default function Laporan() {
               await exportPengeluaranStok(rows, `pengeluaran-stok-${dari}-${sampai}.xlsx`);
             }}>⬇️ Excel</button>
           </div>
+          <Memuat q={pengQ} />
           {pengQ.data?.length === 0 && <p className="muted">Belum ada mutasi pada rentang ini.</p>}
           {pengQ.data?.map((d) => (
             <div key={d.tanggal}>
