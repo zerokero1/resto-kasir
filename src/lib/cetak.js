@@ -33,17 +33,13 @@ export async function sinkronStruk(notaId, baris) {
 }
 
 export async function bukaCetakBt(notaId, baris) {
-  try {
-    const url = await sinkronStruk(notaId, baris);
-    const f = document.createElement('iframe');
-    f.style.cssText = 'width:0;height:0;border:0;visibility:hidden';
-    f.src = `my.bluetoothprint.scheme://${url}`;
-    document.body.appendChild(f);
-    setTimeout(() => { if (f.parentNode) f.parentNode.removeChild(f); }, 5000);
-    return true;
-  } catch {
-    return false;
-  }
+  const url = await sinkronStruk(notaId, baris);
+  const f = document.createElement('iframe');
+  f.style.cssText = 'width:0;height:0;border:0;visibility:hidden';
+  f.src = `my.bluetoothprint.scheme://${url}`;
+  document.body.appendChild(f);
+  setTimeout(() => { if (f.parentNode) f.parentNode.removeChild(f); }, 5000);
+  return true;
 }
 
 // ============ Web Bluetooth (langsung, tanpa aplikasi pihak ketiga) ============

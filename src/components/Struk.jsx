@@ -4,11 +4,14 @@ import { fmtTgl, metodeLabel } from '../lib/format';
 import { bukaCetakBt, cetakWebBt, putusWebBt, cetakViaApk, bridgeApkAda } from '../lib/cetak';
 
 export default function StrukModal({ p, onClose, autoPrint }) {
-  const [items, setItems] = useState([]);
+  const [items, setItems] = useState(null);
+  const [itemErr, setItemErr] = useState('');
   const [btOn, setBtOn] = useState(() => localStorage.getItem('printBt') !== '0');
   const [st, setSt] = useState('');
   const [busy, setBusy] = useState(false);
   const diApk = bridgeApkAda();
+  const itemsLoaded = items !== null;
+  const itemRows = items || [];
 
   useEffect(() => {
     localStorage.setItem('printBt', btOn ? '1' : '0');
@@ -16,11 +19,18 @@ export default function StrukModal({ p, onClose, autoPrint }) {
 
   useEffect(() => {
     let on = true;
+    setItems(null);
+    setItemErr('');
     supabase
       .from('resto_pesanan_item')
       .select('*')
       .eq('pesanan_id', p.id)
-      .then(({ data }) => { if (on) setItems(data || []); });
+      .then(({ data, error }) => {
+        if (!on) return;
+        if (error) { setItemErr(error.message); setItems([]); return; }
+        setItems(data || []);
+      })
+      .catch(() => { if (on) { setItemErr('Gagal memuat item'); setItems([]); } });
     return () => { on = false; };
   }, [p.id]);
 
@@ -32,7 +42,7 @@ export default function StrukModal({ p, onClose, autoPrint }) {
     { text: 'Kasir: ' + (p.nama_kasir || '-') },
     ...(p.lunas === false ? [{ text: 'STATUS: BELUM DIBAYAR' }] : []),
     { text: '===============================' },
-    ...items.flatMap((it) => [
+    ...itemRows.flatMap((it) => [
       { text: `${Number(it.qty)} ${it.nama}` },
       { text: Number(it.subtotal).toLocaleString('id-ID') }
     ]),
@@ -49,12 +59,10 @@ export default function StrukModal({ p, onClose, autoPrint }) {
     { text: '===============================' },
     { text: 'Terima kasih', center: true },
     { text: 'Semoga harimu menyenangkan', center: true }
-  ], [p, items]);
+  ], [p, itemRows]);
 
-  // Auto-print checker setelah simpan order / cetak struk pembayaran
-  // (bisa dimatikan lewat toggle "Cetak otomatis ke printer").
   useEffect(() => {
-    if (autoPrint && btOn && items.length > 0) {
+    if (autoPrint && btOn && itemsLoaded && itemRows.length > 0) {
       const t = setTimeout(async () => {
         try {
           if (diApk) cetakViaApk(barisStruk());
@@ -63,7 +71,7 @@ export default function StrukModal({ p, onClose, autoPrint }) {
       }, 600);
       return () => clearTimeout(t);
     }
-  }, [p.id, autoPrint, btOn, items, diApk, barisStruk]);
+  }, [p.id, autoPrint, btOn, itemsLoaded, itemRows.length, diApk, barisStruk]);
 
   async function cetakApp() {
     setBusy(true);
@@ -111,15 +119,17 @@ export default function StrukModal({ p, onClose, autoPrint }) {
           <input type="checkbox" checked={btOn} onChange={(e) => setBtOn(e.target.checked)} />
           Cetak otomatis ke printer
         </label>
+        {!itemsLoaded && <div className="cetak-st">Memuat item…</div>}
+        {itemErr && <div className="cetak-st err">{itemErr}</div>}
         {diApk ? (
           <>
-            <button className="btn btn-primary" disabled={busy} onClick={cetakApk}>🖨️ Cetak APK</button>
+            <button className="btn btn-primary" disabled={busy || !itemsLoaded} onClick={cetakApk}>🖨️ Cetak APK</button>
             <button className="btn" onClick={() => window.print()}>🖨️ Cetak Browser</button>
           </>
         ) : (
           <>
-            <button className="btn btn-primary" disabled={busy} onClick={cetakWeb}>🖨️ Cetak BT Web</button>
-            <button className="btn" disabled={busy} onClick={cetakApp}>📡 Cetak App</button>
+            <button className="btn btn-primary" disabled={busy || !itemsLoaded} onClick={cetakWeb}>🖨️ Cetak BT Web</button>
+            <button className="btn" disabled={busy || !itemsLoaded} onClick={cetakApp}>📡 Cetak App</button>
             <button className="btn" onClick={() => window.print()}>🖨️ Cetak Browser</button>
             <button className="btn" onClick={() => { putusWebBt(); setSt(''); }}>Putus BT</button>
           </>
@@ -136,12 +146,18 @@ export default function StrukModal({ p, onClose, autoPrint }) {
           <div className="s-line">Kasir: {p.nama_kasir || '-'}</div>
           {p.lunas === false && <div className="s-line" style={{ fontWeight: 800 }}>STATUS: BELUM DIBAYAR</div>}
           <div className="s-rule" />
-          {items.map((it) => (
-            <div className="s-item" key={it.id}>
-              <div>{Number(it.qty)} {it.nama}</div>
-              <div>{Number(it.subtotal).toLocaleString('id-ID')}</div>
-            </div>
-          ))}
+          {!itemsLoaded ? (
+            <div className="s-line">Memuat item…</div>
+          ) : itemRows.length === 0 ? (
+            <div className="s-line">(tidak ada item)</div>
+          ) : (
+            itemRows.map((it) => (
+              <div className="s-item" key={it.id}>
+                <div>{Number(it.qty)} {it.nama}</div>
+                <div>{Number(it.subtotal).toLocaleString('id-ID')}</div>
+              </div>
+            ))
+          )}
           <div className="s-rule" />
           <div className="s-item"><b>TOTAL</b><b>{Number(p.total).toLocaleString('id-ID')}</b></div>
           {p.lunas !== false && (
