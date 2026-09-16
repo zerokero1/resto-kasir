@@ -12,6 +12,7 @@ export default function Hutang() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [needMigrasi, setNeedMigrasi] = useState(false);
+  const [autoPrint, setAutoPrint] = useState(false);
 
   const muat = useCallback(async () => {
     try {
@@ -56,6 +57,7 @@ export default function Hutang() {
       const { data, error } = await supabase.from('resto_pesanan').update(body).eq('id', p.id).select().single();
       if (error) throw new Error(error.message);
       setPayFor(null);
+      setAutoPrint(true);
       setStrukP(data);
       await muat();
     } catch (e) { setErr(e.message); } finally { setBusy(false); }
@@ -90,7 +92,7 @@ update public.resto_pesanan set lunas = true where metode &lt;&gt; 'hutang';</pr
             <div className="row-end">
               <div><b>{uang(p.total)}</b></div>
               <div className="f-row end" style={{ margin: 0 }}>
-                <button className="btn btn-sm" onClick={() => setStrukP(p)}>Struk</button>
+                <button className="btn btn-sm" onClick={() => { setAutoPrint(false); setStrukP(p); }}>Struk</button>
                 <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => setPayFor(p)}>Bayar</button>
               </div>
             </div>
@@ -100,7 +102,7 @@ update public.resto_pesanan set lunas = true where metode &lt;&gt; 'hutang';</pr
       </div>
 
       {payFor && <PaymentModal p={payFor} onClose={() => setPayFor(null)} onBayar={bayar} busy={busy} />}
-      {strukP && <StrukModal p={strukP} onClose={() => setStrukP(null)} />}
+      {strukP && <StrukModal p={strukP} autoPrint={autoPrint} onClose={() => { setAutoPrint(false); setStrukP(null); }} />}
     </div>
   );
 }

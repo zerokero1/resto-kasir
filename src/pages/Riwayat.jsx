@@ -12,6 +12,7 @@ export default function Riwayat() {
   const [total, setTotal] = useState(0);
   const [view, setView] = useState(null);
   const [payFor, setPayFor] = useState(null);
+  const [autoPrint, setAutoPrint] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
@@ -46,6 +47,7 @@ export default function Riwayat() {
       const { data, error } = await supabase.from('resto_pesanan').update(body).eq('id', p.id).select().single();
       if (error) throw new Error(error.message);
       setPayFor(null);
+      setAutoPrint(true);
       setView(data);
       await muat();
     } catch (e) { setErr(e.message); } finally { setBusy(false); }
@@ -81,7 +83,7 @@ export default function Riwayat() {
         ))}
         {err && <div className="err">{err}</div>}
       </div>
-      {view && <StrukModal p={view} onClose={() => setView(null)} />}
+      {view && <StrukModal p={view} autoPrint={autoPrint} onClose={() => { setAutoPrint(false); setView(null); }} />}
       {payFor && <PaymentModal p={payFor} onClose={() => setPayFor(null)} onBayar={bayar} busy={busy} />}
     </div>
   );

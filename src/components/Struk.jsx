@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { fmtTgl, metodeLabel } from '../lib/format';
 import { bukaCetakBt, cetakWebBt, putusWebBt, cetakViaApk, bridgeApkAda } from '../lib/cetak';
 
-export default function StrukModal({ p, onClose }) {
+export default function StrukModal({ p, onClose, autoPrint }) {
   const [items, setItems] = useState([]);
   const [btOn, setBtOn] = useState(() => localStorage.getItem('printBt') !== '0');
   const [st, setSt] = useState('');
@@ -51,18 +51,19 @@ export default function StrukModal({ p, onClose }) {
     { text: 'Semoga harimu menyenangkan', center: true }
   ], [p, items]);
 
-  // Cetak otomatis setelah pembayaran: pakai APK bila dalam APK, else aplikasi Bluetooth Print.
+  // Auto-print checker setelah simpan order / cetak struk pembayaran
+  // (bisa dimatikan lewat toggle "Cetak otomatis ke printer").
   useEffect(() => {
-    if (btOn && p.lunas !== false && items.length > 0) {
+    if (autoPrint && btOn && items.length > 0) {
       const t = setTimeout(async () => {
         try {
           if (diApk) cetakViaApk(barisStruk());
           else await bukaCetakBt(p.id, barisStruk());
         } catch (e) { setSt('Gagal: ' + e.message); }
-      }, 800);
+      }, 600);
       return () => clearTimeout(t);
     }
-  }, [p.id, p.lunas, btOn, items, diApk, barisStruk]);
+  }, [p.id, autoPrint, btOn, items, diApk, barisStruk]);
 
   async function cetakApp() {
     setBusy(true);

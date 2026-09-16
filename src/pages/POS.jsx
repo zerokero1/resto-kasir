@@ -110,7 +110,7 @@ export default function POS({ user }) {
         </div>
       </div>
 
-      {pesanan && <StrukModal p={pesanan} cart={null} onClose={() => setPesanan(null)} />}
+      {pesanan && <StrukModal p={pesanan} autoPrint onClose={() => setPesanan(null)} />}
     </div>
   );
 }
