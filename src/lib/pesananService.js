@@ -53,6 +53,10 @@ export async function simpanPesanan({ items, bayar, kembalian, metode, kasirId, 
   return pesanan;
 }
 
+function notaBisaDiubah(pesanan) {
+  return pesanan.lunas === false;
+}
+
 export async function ambilItemPesanan(pesananId) {
   const { data, error } = await supabase
     .from('resto_pesanan_item')
@@ -65,7 +69,7 @@ export async function ambilItemPesanan(pesananId) {
 
 export async function tambahItemPesanan(pesanan, items) {
   if (!items.length) return pesanan;
-  if (Number(pesanan.lunas) !== false) throw new Error('Nota sudah lunas — tidak bisa ditambah.');
+  if (!notaBisaDiubah(pesanan)) throw new Error('Nota sudah lunas — tidak bisa ditambah.');
 
   const tambahan = items.reduce((s, i) => s + (Number(i.harga) || 0) * (Number(i.qty) || 1), 0);
   const totalBaru = Number(pesanan.total) + tambahan;
@@ -94,7 +98,7 @@ export async function tambahItemPesanan(pesanan, items) {
 }
 
 export async function hapusItemPesanan(pesanan, itemId) {
-  if (Number(pesanan.lunas) !== false) throw new Error('Nota sudah lunas — tidak bisa diubah.');
+  if (!notaBisaDiubah(pesanan)) throw new Error('Nota sudah lunas — tidak bisa diubah.');
 
   const { data: item, error: e0 } = await supabase
     .from('resto_pesanan_item')
