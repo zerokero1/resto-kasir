@@ -23,6 +23,7 @@ function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy }) {
   const [itemErr, setItemErr] = useState('');
   const [jumlahPayer, setJumlahPayer] = useState(2);
   const [assign, setAssign] = useState({});
+  const [pecah, setPecah] = useState({});
   const [cara, setCara] = useState({});
   const totalMenu = Number(p.total);
   const pakaiPajak = metode === 'debit';
@@ -47,7 +48,10 @@ function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy }) {
         for (const it of rows) a[it.id] = { 0: Number(it.qty) || 0 };
         setAssign(a);
         setJumlahPayer((n) => Math.min(Math.max(n, 2), Math.max(2, rows.length)));
-        setCara({ 0: 'tunai', 1: 'debit' });
+        const c = {};
+        for (let i = 0; i < jumlahPayer; i++) c[i] = 'tunai';
+        setCara(c);
+        setPecah({});
       })
       .catch((e) => { if (!batal) setItemErr(e.message); });
     return () => { batal = true; };
@@ -56,17 +60,75 @@ function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy }) {
   function ubahQty(itemId, idx, val) {
     const sumber = itemsi.find((it) => it.id === itemId);
     const maks = Number(sumber?.qty) || 0;
-    let v = Math.max(0, Math.min(maks, Number(val) || 0));
-    const lain = Object.entries(assign[itemId] || {})
-      .filter(([k]) => Number(k) !== idx)
-      .reduce((s, [, q]) => s + (Number(q) || 0), 0);
-    v = Math.max(0, Math.min(v, maks - lain));
-    setAssign((a) => ({ ...a, [itemId]: { ...(a[itemId] || {}), [idx]: v } }));
+    const diminta = Math.max(0, Math.min(maks, Math.floor(Number(val) || 0)));
+    const dist = { ...(assign[itemId] || {}) };
+    let kurang = diminta - (Number(dist[idx]) || 0);
+    if (kurang > 0) {
+      const lain = Object.keys(dist)
+        .filter((k) => Number(k) !== idx && (Number(dist[k]) || 0) > 0)
+        .sort((a, b) => (Number(dist[b]) || 0) - (Number(dist[a]) || 0));
+      for (const k of lain) {
+        if (kurang <= 0) break;
+        const ambil = Math.min(kurang, Number(dist[k]) || 0);
+        dist[k] = (Number(dist[k]) || 0) - ambil;
+        kurang -= ambil;
+      }
+    }
+    if (kurang > 0) return;
+    dist[idx] = diminta;
+    setAssign((a) => ({ ...a, [itemId]: dist }));
+  }
+
+  function pilihPayer(itemId, idx) {
+    const sumber = itemsi.find((it) => it.id === itemId);
+    const qty = Math.floor(Number(sumber?.qty) || 0);
+    if (!qty) return;
+    setAssign((a) => ({ ...a, [itemId]: { [idx]: qty } }));
+  }
+
+  function togglePecah(itemId) {
+    setPecah((s) => {
+      if (s[itemId]) {
+        const next = { ...s };
+        delete next[itemId];
+        return next;
+      }
+      const sumber = itemsi.find((it) => it.id === itemId);
+      const qty = Math.floor(Number(sumber?.qty) || 0);
+      const sekarang = assign[itemId] || {};
+      const punya = Object.keys(sekarang).filter((k) => (Number(sekarang[k]) || 0) > 0);
+      if (punya.length === 1 && qty > 1) {
+        const dari = Number(punya[0]);
+        const Elsewhere = (dari + 1) % Math.max(2, jumlahPayer);
+        const ambil = Math.floor(qty / 2);
+        setAssign((a) => ({ ...a, [itemId]: { [dari]: dari - ambil, [ Elsewhere]: ambil } }));
+      }
+      return { ...s, [itemId]: true };
+    });
   }
 
   function pindahkanSemua(idx) {
     const a = {};
-    for (const it of itemsi) a[it.id] = { ...(assign[it.id] || {}), [idx]: Number(it.qty) || 0 };
+    for (const it of itemsi) a[it.id] = { [idx]: Number(it.qty) || 0 };
+    setAssign(a);
+  }
+
+  function splitRata() {
+    const a = {};
+    let giliran = 0;
+    for (const it of itemsi) {
+      const qty = Math.floor(Number(it.qty) || 0);
+      if (qty <= 0) { a[it.id] = { 0: 0 }; continue; }
+      const isi = {};
+      const jumlah = Math.min(jumlahPayer, qty);
+      for (let k = 0; k < jumlah; k++) {
+        const idx = (giliran + k) % jumlahPayer;
+        isi[idx] = (isi[idx] || 0) + 1;
+      }
+      if (qty > jumlah) isi[giliran % jumlahPayer] += qty - jumlah;
+      a[it.id] = isi;
+      giliran = (giliran + jumlah) % jumlahPayer;
+    }
     setAssign(a);
   }
 
@@ -214,34 +276,67 @@ function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy }) {
                   >+</button>
                 </div>
                 <div className="f-row" style={{ marginTop: 4 }}>
+                  <button className="btn btn-sm" type="button" onClick={splitRata}>⚡ Split rata</button>
                   <button className="btn btn-sm" type="button" onClick={() => pindahkanSemua(0)}>Semua ke P1</button>
                   <button className="btn btn-sm" type="button" onClick={() => pindahkanSemua(1)}>Semua ke P2</button>
                 </div>
+                <p className="muted small" style={{ marginTop: 6 }}>
+                  Ketuk P1/P2/… pada tiap item untuk memindahkannya ke orang itu. Kalau qty mau dipecah, tekan ⚖️ Pecah lalu ubah angkanya.
+                </p>
 
-                {itemsi.map((it) => (
-                  <div className="mut-detail" key={it.id} style={{ marginTop: 6 }}>
-                    <div className="p-row">
-                      <b>{it.nama}</b>
-                      <span className="p-cell">{it.qty} x {uang(it.harga)}</span>
+                {itemsi.map((it) => {
+                  const punya = Object.entries(assign[it.id] || {}).filter(([, q]) => Number(q) > 0);
+                  return (
+                    <div className="mut-detail" key={it.id} style={{ marginTop: 6 }}>
+                      <div className="p-row">
+                        <b>{it.nama}</b>
+                        <span className="p-cell">{it.qty} x {uang(it.harga)} = {uang(it.subtotal)}</span>
+                      </div>
+                      <div className="f-row" style={{ marginTop: 4 }}>
+                        {Array.from({ length: jumlahPayer }, (_, i) => {
+                          const punyaP = Number(assign[it.id]?.[i]) || 0;
+                          return (
+                            <button
+                              key={i}
+                              type="button"
+                              className={'btn btn-sm' + (punyaP > 0 ? ' btn-primary' : '')}
+                              onClick={() => pilihPayer(it.id, i)}
+                            >
+                              P{i + 1}{punyaP > 0 ? ' · ' + punyaP : ''}
+                            </button>
+                          );
+                        })}
+                        {Math.floor(Number(it.qty) || 0) > 1 && (
+                          <button
+                            className={'btn btn-sm' + (pecah[it.id] ? ' btn-primary' : '')}
+                            type="button"
+                            onClick={() => togglePecah(it.id)}
+                          >
+                            ⚖️ Pecah
+                          </button>
+                        )}
+                      </div>
+                      {(pecah[it.id] || punya.length > 1) && (
+                        <div className="f-row" style={{ marginTop: 4 }}>
+                          {Array.from({ length: jumlahPayer }, (_, i) => (
+                            <label key={i} className="lbl" style={{ flex: 1, margin: 0 }}>
+                              P{i + 1}
+                              <input
+                                className="input"
+                                type="number"
+                                inputMode="numeric"
+                                min="0"
+                                max={it.qty}
+                                value={assign[it.id]?.[i] ?? 0}
+                                onChange={(e) => ubahQty(it.id, i, e.target.value)}
+                              />
+                            </label>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <div className="f-row" style={{ marginTop: 4 }}>
-                      {Array.from({ length: jumlahPayer }, (_, i) => (
-                        <label key={i} className="lbl" style={{ flex: 1, margin: 0 }}>
-                          P{i + 1}
-                          <input
-                            className="input"
-                            type="number"
-                            inputMode="numeric"
-                            min="0"
-                            max={it.qty}
-                            value={assign[it.id]?.[i] ?? 0}
-                            onChange={(e) => ubahQty(it.id, i, e.target.value)}
-                          />
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 <div className="rule" />
                 {payer.map((x) => (
@@ -277,7 +372,7 @@ function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy }) {
                         onClick={() => setCara((c) => ({ ...c, ['b' + x.i]: String(x.total) }))}
                       >Bayar Pas</button>
                     </div>
-                    {x.items.length === 0 && <div className="err">P{x.i + 1} belum dapat item.</div>}
+                    {x.items.length === 0 && <div className="muted small">P{x.i + 1} belum dapat item.</div>}
                     {x.bayar > 0 && x.bayar < x.total && (
                       <div className="err">P{x.i + 1} kurang {uang(x.total - x.bayar)}.</div>
                     )}
@@ -300,6 +395,13 @@ function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy }) {
                     {busy ? 'Memproses…' : 'Bayar & Lunas' + (jumlahPayer > 1 ? ' ' + jumlahPayer + ' orang' : '')}
                   </button>
                 </div>
+                {!splitSiap && itemsSiap && !busy && (
+                  <div className="err">
+                    {payer.some((x) => x.items.length === 0)
+                      ? 'Masih ada payer tanpa item: ' + payer.filter((x) => x.items.length === 0).map((x) => 'P' + (x.i + 1)).join(', ') + '. Ketuk tombol P pada item, atau pakai "Split rata".'
+                      : 'Ada nominal payer yang kurang dari totalnya.'}
+                  </div>
+                )}
                 <p className="muted small" style={{ marginTop: 8 }}>
                   Tiap payer disimpan jadi nota terpisah (P1 = {p.id}, P2 = {p.id}-S2, dst) supaya total revenue &amp; pajak tetap akurat.
                 </p>
