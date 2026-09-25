@@ -124,6 +124,127 @@ export async function hapusItemPesanan(pesanan, itemId) {
   return data;
 }
 
+/**
+ * Split bill per item: setiap pecahan disimpan sebagai nota terpisah.
+ * parts[0] adalah nota induk (id asli), parts[1..] jadi nota baru ber-id
+ * "<id induk>-S2", "-S3", dst dengan catatan "Split dari <id induk>".
+ * Item hanya boleh dibagi per qty; total qty tiap item harus tetap sama.
+ */
+export async function simpanSplitBayar(pesanan, parts) {
+  if (!notaBisaDiubah(pesanan)) throw new Error('Nota sudah lunas — tidak bisa di-split.');
+  if (!Array.isArray(parts) || parts.length < 2) throw new Error('Split minimal 2 payer.');
+
+  const asli = await ambilItemPesanan(pesanan.id);
+  const mapAsli = {};
+  for (const it of asli) mapAsli[it.id] = it;
+
+  for (const part of parts) {
+    if (!part.items.length) throw new Error('Ada payer tanpa item.');
+    for (const it of part.items) {
+      const src = mapAsli[it.id];
+      if (!src) throw new Error('Item tidak dikenal.');
+      if ((Number(it.qty) || 0) <= 0) throw new Error('Qty payer tidak valid.');
+      if ((Number(it.qty) || 0) > (Number(src.qty) || 0)) {
+        throw new Error(`Qty ${src.nama} melebihi qty nota (${src.qty}).`);
+      }
+    }
+    if (Number(part.total) < 0) throw new Error('Total payer tidak valid.');
+  }
+
+  for (const it of asli) {
+    const jml = parts.reduce((s, part) => {
+      const found = part.items.find((x) => x.id === it.id);
+      return s + (found ? Number(found.qty) || 0 : 0);
+    }, 0);
+    if (Math.abs(jml - (Number(it.qty) || 0)) > 0.0001) {
+      throw new Error(`Total qty ${it.nama} harus tetap ${it.qty}, saat ini ${jml}.`);
+    }
+  }
+
+  const now = new Date().toISOString();
+  const anak = [];
+  try {
+    for (let i = 1; i < parts.length; i++) {
+      const part = parts[i];
+      const idBaru = pesanan.id + '-S' + (i + 1);
+      const { data: row, error: e1 } = await supabase
+        .from('resto_pesanan')
+        .insert({
+          id: idBaru,
+          tanggal: now,
+          total: Number(part.total) || 0,
+          bayar: Number(part.bayar) || 0,
+          kembalian: Number(part.kembalian) || 0,
+          metode: part.metode,
+          user_id: pesanan.user_id ?? null,
+          nama_kasir: pesanan.nama_kasir ?? null,
+          catatan: 'Split dari ' + pesanan.id + ' (P' + (i + 1) + ')',
+          lunas: true,
+          tanggal_lunas: now
+        })
+        .select()
+        .single();
+      if (e1) throw new Error(e1.message);
+      anak.push({ row, part });
+
+      const itemRows = part.items.map((x) => {
+        const src = mapAsli[x.id];
+        const qty = Number(x.qty) || 0;
+        return {
+          pesanan_id: idBaru,
+          produk_id: src.produk_id,
+          nama: src.nama,
+          harga: src.harga,
+          qty,
+          subtotal: (Number(src.harga) || 0) * qty
+        };
+      });
+      const { error: e2 } = await supabase.from('resto_pesanan_item').insert(itemRows);
+      if (e2) throw new Error(e2.message);
+    }
+
+    const induk = parts[0];
+    for (const it of asli) {
+      const found = induk.items.find((x) => x.id === it.id);
+      const qty = found ? Number(found.qty) || 0 : 0;
+      if (qty <= 0) {
+        const { error } = await supabase.from('resto_pesanan_item').delete().eq('id', it.id);
+        if (error) throw new Error(error.message);
+      } else {
+        const { error } = await supabase
+          .from('resto_pesanan_item')
+          .update({ qty, subtotal: (Number(it.harga) || 0) * qty })
+          .eq('id', it.id);
+        if (error) throw new Error(error.message);
+      }
+    }
+
+    const { data: indukBaru, error: e3 } = await supabase
+      .from('resto_pesanan')
+      .update({
+        total: Number(induk.total) || 0,
+        bayar: Number(induk.bayar) || 0,
+        kembalian: Number(induk.kembalian) || 0,
+        metode: induk.metode,
+        catatan: parts.length > 2 ? pesanan.catatan || 'Split bill' : pesanan.catatan,
+        lunas: true,
+        tanggal_lunas: now
+      })
+      .eq('id', pesanan.id)
+      .select()
+      .single();
+    if (e3) throw new Error(e3.message);
+
+    return [indukBaru, ...anak.map((a) => a.row)];
+  } catch (err) {
+    for (const a of anak) {
+      await supabase.from('resto_pesanan_item').delete().eq('pesanan_id', a.row.id);
+      await supabase.from('resto_pesanan').delete().eq('id', a.row.id);
+    }
+    throw err;
+  }
+}
+
 async function kurangiStokBahan(items) {
   const menuIds = items.map((i) => i.produk_id).filter(Boolean);
   if (!menuIds.length) return;

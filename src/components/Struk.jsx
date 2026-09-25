@@ -40,6 +40,7 @@ export default function StrukModal({ p, onClose, autoPrint }) {
     { text: String(p.id) },
     { text: fmtTgl(p.tanggal) },
     { text: 'Kasir: ' + (p.nama_kasir || '-') },
+    ...(p.catatan ? [{ text: String(p.catatan) }] : []),
     ...(p.lunas === false ? [{ text: 'STATUS: BELUM DIBAYAR' }] : []),
     { text: '===============================' },
     ...itemRows.flatMap((it) => [
@@ -153,6 +154,7 @@ export default function StrukModal({ p, onClose, autoPrint }) {
           <div className="s-line">{p.id}</div>
           <div className="s-line">{fmtTgl(p.tanggal)}</div>
           <div className="s-line">Kasir: {p.nama_kasir || '-'}</div>
+          {p.catatan && <div className="s-line">{p.catatan}</div>}
           {p.lunas === false && <div className="s-line" style={{ fontWeight: 800 }}>STATUS: BELUM DIBAYAR</div>}
           <div className="s-rule" />
           {!itemsLoaded ? (

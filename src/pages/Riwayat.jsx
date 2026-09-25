@@ -6,6 +6,7 @@ import { uang, todayStr, fmtTgl, metodeLabel } from '../lib/format';
 import StrukModal from '../components/Struk';
 import PaymentModal from '../components/Payment';
 import TambahItemModal from '../components/TambahItem';
+import { simpanSplitBayar } from '../lib/pesananService';
 
 export default function Riwayat() {
   const [tanggal, setTanggal] = useState(todayStr());
@@ -17,6 +18,7 @@ export default function Riwayat() {
   const [autoPrint, setAutoPrint] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [info, setInfo] = useState('');
 
   const muat = useCallback(async (t = tanggal) => {
     const d = await transaksiTanggal(t);
@@ -60,6 +62,18 @@ export default function Riwayat() {
     } catch (e) { setErr(e.message); } finally { setBusy(false); }
   }
 
+  async function bayarSplit(p, parts) {
+    setBusy(true);
+    try {
+      const hasil = await simpanSplitBayar(p, parts);
+      setPayFor(null);
+      await muat();
+      setAutoPrint(true);
+      setView(hasil[0]);
+      setInfo('Split tersimpan: ' + hasil.map((x) => x.id).join(' • ') + '. Cetak struk tiap nota satu-satu dari daftar di bawah.');
+    } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  }
+
   async function cetakExport() {
     setBusy(true);
     try {
@@ -98,9 +112,18 @@ export default function Riwayat() {
           </div>
         ))}
         {err && <div className="err">{err}</div>}
+        {info && <div className="total-line">{info}</div>}
       </div>
       {view && <StrukModal p={view} autoPrint={autoPrint} onClose={() => { setAutoPrint(false); setView(null); }} />}
-      {payFor && <PaymentModal p={payFor} onClose={() => setPayFor(null)} onBayar={bayar} busy={busy} />}
+      {payFor && (
+        <PaymentModal
+          p={payFor}
+          onClose={() => setPayFor(null)}
+          onBayar={bayar}
+          onBayarSplit={bayarSplit}
+          busy={busy}
+        />
+      )}
       {editFor && (
         <TambahItemModal
           p={editFor}

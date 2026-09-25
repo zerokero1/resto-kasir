@@ -4,6 +4,7 @@ import { uang, fmtTgl } from '../lib/format';
 import StrukModal from '../components/Struk';
 import PaymentModal from '../components/Payment';
 import TambahItemModal from '../components/TambahItem';
+import { simpanSplitBayar } from '../lib/pesananService';
 
 export default function Hutang() {
   const [rows, setRows] = useState([]);
@@ -13,6 +14,7 @@ export default function Hutang() {
   const [editFor, setEditFor] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [info, setInfo] = useState('');
   const [needMigrasi, setNeedMigrasi] = useState(false);
   const [autoPrint, setAutoPrint] = useState(false);
 
@@ -70,6 +72,18 @@ export default function Hutang() {
     } catch (e) { setErr(e.message); } finally { setBusy(false); }
   }
 
+  async function bayarSplit(p, parts) {
+    setBusy(true);
+    try {
+      const hasil = await simpanSplitBayar(p, parts);
+      setPayFor(null);
+      await muat();
+      setAutoPrint(true);
+      setStrukP(hasil[0]);
+      setInfo('Split tersimpan: ' + hasil.map((x) => x.id).join(' • ') + '. Cetak struk tiap nota satu-satu dari daftar di atas.');
+    } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  }
+
   if (needMigrasi) {
     return (
       <div className="page">
@@ -107,9 +121,18 @@ update public.resto_pesanan set lunas = true where metode &lt;&gt; 'hutang';</pr
           </div>
         ))}
         {err && <div className="err">{err}</div>}
+        {info && <div className="total-line">{info}</div>}
       </div>
 
-      {payFor && <PaymentModal p={payFor} onClose={() => setPayFor(null)} onBayar={bayar} busy={busy} />}
+      {payFor && (
+        <PaymentModal
+          p={payFor}
+          onClose={() => setPayFor(null)}
+          onBayar={bayar}
+          onBayarSplit={bayarSplit}
+          busy={busy}
+        />
+      )}
       {strukP && <StrukModal p={strukP} autoPrint={autoPrint} onClose={() => { setAutoPrint(false); setStrukP(null); }} />}
       {editFor && (
         <TambahItemModal
