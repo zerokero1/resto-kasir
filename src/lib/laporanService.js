@@ -94,60 +94,100 @@ export function kelompokKeBagian(kelompok) {
   return 'Kitchen';
 }
 
-/**
- * Pendapatan per bagian (Kitchen / Bar / Kopi) untuk satu rentang tanggal.
- * Tax 3% hanya berlaku untuk pembayaran EDC (debit) dan dipisahkan dari total.
- * Pembagian ke bagian memakai nilai item (subtotal), bukan total nota, supaya
- * tax tidak ikut dihitung sebagai pendapatan menu.
- */
-export async function pendapatanPerBagian(dari, sampai) {
-  const kosong = {
+function rekapPendapatan(pesanan) {
+  const res = {
     totalRevenue: 0, totalTanpaPajak: 0, totalPajak3: 0,
     jumlahNota: 0, itemTerjual: 0,
     bagian: { Kitchen: 0, Bar: 0, Kopi: 0 },
     jumlahItem: { Kitchen: 0, Bar: 0, Kopi: 0 },
-    perKelompok: []
+    perKelompok: [],
+    metode: { tunai: 0, qris: 0, debit: 0, hutang: 0 },
+    jumlahMetode: { tunai: 0, qris: 0, debit: 0, hutang: 0 }
   };
-  if (!dari || !sampai) return kosong;
-
-  const pesanan = await transaksiRentang(dari, sampai);
-  if (!pesanan.length) return kosong;
-
-  const { data: produk } = await supabase.from('resto_produk').select('id,nama,kelompok').eq('jenis', 'menu');
-  const mapProduk = {};
-  for (const x of produk || []) mapProduk[x.id] = x;
+  if (!pesanan.length) return res;
 
   const perKelompok = {};
-  const res = { ...kosong, bagian: { Kitchen: 0, Bar: 0, Kopi: 0 }, jumlahItem: { Kitchen: 0, Bar: 0, Kopi: 0 }, perKelompok: [] };
-
   for (const p of pesanan) {
     res.jumlahNota += 1;
     const totalNota = Number(p.total) || 0;
-    const totalItem = (p.items || []).reduce((s, it) => s + (Number(it.subtotal) || 0), 0);
+    const items = p.items || [];
+    const totalItem = items.reduce((s, it) => s + (Number(it.subtotal) || 0), 0);
     const pajak = p.metode === 'debit' ? Math.max(0, totalNota - totalItem) : 0;
 
     res.totalRevenue += totalNota;
     res.totalPajak3 += pajak;
     res.totalTanpaPajak += totalNota - pajak;
-    res.itemTerjual += (p.items || []).length;
+    res.itemTerjual += items.length;
+    if (res.metode[p.metode] !== undefined) {
+      res.metode[p.metode] += totalNota;
+      res.jumlahMetode[p.metode] += 1;
+    }
 
-    for (const it of p.items || []) {
-      const prod = mapProduk[it.produk_id];
-      const kelompok = prod?.kelompok || 'Kitchen';
+    for (const it of items) {
+      const kelompok = p._mapProduk?.[it.produk_id]?.kelompok || 'Kitchen';
       const bagian = kelompokKeBagian(kelompok);
       const sub = Number(it.subtotal) || 0;
       const qty = Number(it.qty) || 0;
       res.bagian[bagian] += sub;
       res.jumlahItem[bagian] += qty;
-      const key = kelompok;
-      if (!perKelompok[key]) perKelompok[key] = { kelompok: key, bagian, omzet: 0, qty: 0 };
-      perKelompok[key].omzet += sub;
-      perKelompok[key].qty += qty;
+      if (!perKelompok[kelompok]) perKelompok[kelompok] = { kelompok, bagian, omzet: 0, qty: 0 };
+      perKelompok[kelompok].omzet += sub;
+      perKelompok[kelompok].qty += qty;
     }
   }
-
   res.perKelompok = Object.values(perKelompok).sort((a, b) => b.omzet - a.omzet);
   return res;
+}
+
+async function ambilPesananBerisiItems(dari, sampai) {
+  const pesanan = await transaksiRentang(dari, sampai);
+  if (!pesanan.length) return [];
+  const { data: produk } = await supabase.from('resto_produk').select('id,nama,kelompok').eq('jenis', 'menu');
+  const mapProduk = {};
+  for (const x of produk || []) mapProduk[x.id] = x;
+  return pesanan.map((p) => ({ ...p, _mapProduk: mapProduk }));
+}
+
+export async function pendapatanPerBagian(dari, sampai) {
+  if (!dari || !sampai) return rekapPendapatan([]);
+  return rekapPendapatan(await ambilPesananBerisiItems(dari, sampai));
+}
+
+/** Laporan satu hari: rekap harian + rincian per bagian + daftar transaksi. */
+export async function laporanHarian(tgl) {
+  if (!tgl) return { ...rekapPendapatan([]), tanggal: tgl, pesanan: [], perJam: [] };
+  const enriched = await ambilPesananBerisiItems(tgl, tgl);
+  const res = rekapPendapatan(enriched);
+  const perJam = {};
+  for (const p of enriched) {
+    const jam = p.tanggal ? new Date(p.tanggal).getHours() : 0;
+    const jamKey = String(jam).padStart(2, '0');
+    if (!perJam[jamKey]) perJam[jamKey] = { jam: jamKey, jumlah: 0, total: 0, totalTanpaPajak: 0, totalPajak3: 0 };
+    const q = perJam[jamKey];
+    const totalNota = Number(p.total) || 0;
+    const totalItem = (p.items || []).reduce((s, it) => s + (Number(it.subtotal) || 0), 0);
+    const pajak = p.metode === 'debit' ? Math.max(0, totalNota - totalItem) : 0;
+    q.jumlah += 1;
+    q.total += totalNota;
+    q.totalPajak3 += pajak;
+    q.totalTanpaPajak += totalNota - pajak;
+  }
+  return {
+    ...res,
+    tanggal: tgl,
+    perJam: Object.values(perJam).sort((a, b) => a.jam.localeCompare(b.jam)),
+    pesanan: enriched.map((p) => ({
+      id: p.id, tanggal: p.tanggal, metode: p.metode, lunas: p.lunas,
+      total: Number(p.total) || 0, bayar: Number(p.bayar) || 0,
+      kembalian: Number(p.kembalian) || 0, nama_kasir: p.nama_kasir,
+      item: (p.items || []).map((it) => ({
+        nama: p._mapProduk?.[it.produk_id]?.nama || '#' + it.produk_id,
+        kelompok: p._mapProduk?.[it.produk_id]?.kelompok || '-',
+        bagian: kelompokKeBagian(p._mapProduk?.[it.produk_id]?.kelompok || 'Kitchen'),
+        qty: Number(it.qty) || 0, subtotal: Number(it.subtotal) || 0
+      }))
+    }))
+  };
 }
 
 export function periodKey(ts, mode) {

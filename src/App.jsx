@@ -9,6 +9,7 @@ import Hutang from './pages/Hutang';
 import Stok from './pages/Stok';
 import Produk from './pages/Produk';
 import Laporan from './pages/Laporan';
+import LaporanHarian from './pages/LaporanHarian';
 import Karyawan from './pages/Karyawan';
 import Dashboard from './pages/Dashboard';
 
@@ -38,6 +39,7 @@ export default function App() {
         <Route path="/stok" element={<Stok user={user} />} />
         <Route path="/produk" element={<Produk />} />
         <Route path="/laporan" element={<Laporan />} />
+        <Route path="/laporan-harian" element={<LaporanHarian />} />
         <Route path="/karyawan" element={<Karyawan user={user} />} />
       </Routes>
     </Layout>

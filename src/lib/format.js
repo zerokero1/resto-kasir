@@ -23,7 +23,12 @@ export function fmtTgl(ts) {
     ' ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 }
 
-const METODE = { tunai: 'Tunai', qris: 'QRIS', debit: 'Kartu/Cardless', hutang: 'Belum Bayar' };
+export function jamTgl(ts) {
+  if (!ts) return '';
+  return new Date(ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+export const METODE = { tunai: 'Tunai', qris: 'QRIS', debit: 'Kartu/Cardless', hutang: 'Belum Bayar' };
 export function metodeLabel(m) {
   return METODE[m] || m;
 }

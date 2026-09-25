@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import { jamTgl } from './format';
 
 function unduh(buffer, nama) {
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -175,6 +176,69 @@ export async function exportPendapatanBagian(data, fileName = 'pendapatan-bagian
   ];
   for (const r of d.perKelompok || []) wsk.addRow(r);
   wsk.getRow(1).font = { bold: true };
+
+  const buf = await wb.xlsx.writeBuffer();
+  unduh(buf, fileName);
+}
+
+// data: hasil laporanHarian() — ringkasan harian + rincian per bagian
+export async function exportLaporanHarian(data, fileName = 'laporan-harian.xlsx') {
+  const wb = bukaBuku();
+  const d = data || {};
+  const bagian = d.bagian || { Kitchen: 0, Bar: 0, Kopi: 0 };
+  const jml = d.jumlahItem || { Kitchen: 0, Bar: 0, Kopi: 0 };
+  const label = { tunai: 'Tunai', qris: 'QRIS', debit: 'EDC/Debit', hutang: 'Belum Bayar' };
+
+  const ws = wb.addWorksheet('Rekap Harian');
+  ws.columns = [
+    { header: 'Keterangan', key: 'k', width: 30 },
+    { header: 'Nilai', key: 'v', width: 20, style: { numFmt: '#,##0' } },
+    { header: 'Keterangan 2', key: 'k2', width: 26 },
+    { header: 'Nilai 2', key: 'v2', width: 18, style: { numFmt: '#,##0' } }
+  ];
+  ws.addRow({ k: 'Tanggal', v: d.tanggal || '' });
+  ws.addRow({ k: 'Jumlah Transaksi', v: d.jumlahNota || 0 });
+  ws.addRow({ k: 'Item Terjual', v: d.itemTerjual || 0 });
+  ws.addRow({});
+  const bagianRows = Object.keys(bagian).map((b) => ({ k: 'Pendapatan ' + b, v: bagian[b] || 0, k2: 'Item ' + b, v2: jml[b] || 0 }));
+  for (const r of bagianRows) ws.addRow(r);
+  ws.addRow({});
+  ws.addRow({ k: 'Total Revenue tanpa 3%', v: d.totalTanpaPajak || 0 });
+  ws.addRow({ k: 'Total Revenue 3%', v: d.totalPajak3 || 0 });
+  ws.addRow({ k: 'TOTAL REVENUE', v: d.totalRevenue || 0 });
+  ws.addRow({});
+  for (const m of ['tunai', 'qris', 'debit', 'hutang']) {
+    ws.addRow({ k: label[m], v: d.metode?.[m] || 0, k2: 'Transaksi', v2: d.jumlahMetode?.[m] || 0 });
+  }
+  ws.getRow(1).font = { bold: true };
+
+  const wsk = wb.addWorksheet('Per Kelompok');
+  wsk.columns = [
+    { header: 'Kelompok', key: 'kelompok', width: 22 },
+    { header: 'Bagian', key: 'bagian', width: 12 },
+    { header: 'Omzet (tanpa tax)', key: 'omzet', width: 20, style: { numFmt: '#,##0' } },
+    { header: 'Qty', key: 'qty', width: 12, style: { numFmt: '#,##0' } }
+  ];
+  for (const r of d.perKelompok || []) wsk.addRow(r);
+  wsk.getRow(1).font = { bold: true };
+
+  const wsp = wb.addWorksheet('Transaksi');
+  wsp.columns = [
+    { header: 'Nota', key: 'id', width: 20 },
+    { header: 'Jam', key: 'jam', width: 8 },
+    { header: 'Kasir', key: 'kasir', width: 16 },
+    { header: 'Metode', key: 'metode', width: 14 },
+    { header: 'Item', key: 'item', width: 44 },
+    { header: 'Total', key: 'total', width: 14, style: { numFmt: '#,##0' } }
+  ];
+  for (const p of d.pesanan || []) {
+    wsp.addRow({
+      id: p.id, jam: jamTgl(p.tanggal), kasir: p.nama_kasir || '-',
+      metode: label[p.metode] || p.metode || '-',
+      item: p.item.map((i) => `${i.qty}x ${i.nama}`).join(', '), total: p.total
+    });
+  }
+  wsp.getRow(1).font = { bold: true };
 
   const buf = await wb.xlsx.writeBuffer();
   unduh(buf, fileName);
