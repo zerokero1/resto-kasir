@@ -101,12 +101,14 @@ function rekapPendapatan(pesanan) {
     bagian: { Kitchen: 0, Bar: 0, Kopi: 0 },
     jumlahItem: { Kitchen: 0, Bar: 0, Kopi: 0 },
     perKelompok: [],
+    perMenu: [],
     metode: { tunai: 0, qris: 0, debit: 0, hutang: 0 },
     jumlahMetode: { tunai: 0, qris: 0, debit: 0, hutang: 0 }
   };
   if (!pesanan.length) return res;
 
   const perKelompok = {};
+  const perMenu = {};
   for (const p of pesanan) {
     res.jumlahNota += 1;
     const totalNota = Number(p.total) || 0;
@@ -124,7 +126,8 @@ function rekapPendapatan(pesanan) {
     }
 
     for (const it of items) {
-      const kelompok = p._mapProduk?.[it.produk_id]?.kelompok || 'Kitchen';
+      const prod = p._mapProduk?.[it.produk_id];
+      const kelompok = prod?.kelompok || 'Kitchen';
       const bagian = kelompokKeBagian(kelompok);
       const sub = Number(it.subtotal) || 0;
       const qty = Number(it.qty) || 0;
@@ -133,9 +136,17 @@ function rekapPendapatan(pesanan) {
       if (!perKelompok[kelompok]) perKelompok[kelompok] = { kelompok, bagian, omzet: 0, qty: 0 };
       perKelompok[kelompok].omzet += sub;
       perKelompok[kelompok].qty += qty;
+
+      const pid = it.produk_id ?? it.nama;
+      if (!perMenu[pid]) {
+        perMenu[pid] = { produk_id: pid, nama: prod?.nama || it.nama || '#' + pid, kelompok, bagian, qty: 0, omzet: 0 };
+      }
+      perMenu[pid].qty += qty;
+      perMenu[pid].omzet += sub;
     }
   }
   res.perKelompok = Object.values(perKelompok).sort((a, b) => b.omzet - a.omzet);
+  res.perMenu = Object.values(perMenu).sort((a, b) => b.qty - a.qty || b.omzet - a.omzet);
   return res;
 }
 

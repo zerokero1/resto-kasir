@@ -114,7 +114,82 @@ export function putusWebBt() {
   karakterTulis = null;
 }
 
-// ============ APK Resto Kasir (WebView + bridge AndroidPrint, Bluetooth Classic SPP) ============
+// ============ Cetak Laporan Harian ke printer thermal (32 kolom) ============
+const LEBAR = 32;
+const GARIS = '===============================';
+
+function potong(s, n) {
+  const t = String(s ?? '');
+  return t.length > n ? t.slice(0, n - 1) + '.' : t;
+}
+
+function duaKolom(kiri, kanan) {
+  const l = potong(kiri, 20);
+  const r = String(kanan ?? '');
+  if (l.length + r.length + 1 > LEBAR) {
+    const sisa = Math.max(3, LEBAR - r.length - 1);
+    return l.slice(0, Math.min(l.length, sisa)) + ' ' + r;
+  }
+  return l + ' '.repeat(LEBAR - l.length - r.length) + r;
+}
+
+const rb = (n) => 'Rp ' + (Number(n) || 0).toLocaleString('id-ID');
+const JUDUL_BAGIAN = { Kitchen: 'Kitchen', Bar: 'Bar', Kopi: 'Kopi' };
+const JUDUL_METODE = { tunai: 'Tunai', qris: 'QRIS', debit: 'EDC / Kartu', hutang: 'Belum Bayar' };
+
+export function barisLaporanHarian(d, maxMenu = 20) {
+  const data = d || {};
+  const tgl = data.tanggal
+    ? new Date(data.tanggal + 'T00:00:00').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    : '-';
+  const out = [
+    { text: 'DAYANG RESTO', center: true, width: true },
+    { text: 'LAPORAN HARIAN', center: true, width: true },
+    { text: tgl, center: true },
+    { text: GARIS },
+    { text: duaKolom('Revenue tanpa 3%', rb(data.totalTanpaPajak)) },
+    { text: duaKolom('Revenue 3% (EDC)', rb(data.totalPajak3)) },
+    { text: GARIS },
+    { text: 'TOTAL REVENUE', width: true },
+    { text: rb(data.totalRevenue), width: true },
+    { text: GARIS },
+    { text: (Number(data.jumlahNota) || 0) + ' transaksi / ' + (Number(data.itemTerjual) || 0) + ' item' }
+  ];
+
+  const metodeAda = ['tunai', 'qris', 'debit', 'hutang'].filter((m) => (data.jumlahMetode?.[m] || 0) > 0);
+  if (metodeAda.length) {
+    out.push({ text: GARIS }, { text: 'PEMBAYARAN', width: true });
+    for (const m of metodeAda) {
+      out.push({ text: duaKolom(JUDUL_METODE[m], rb(data.metode?.[m])) });
+    }
+  }
+
+  out.push({ text: GARIS }, { text: 'PENDAPATAN', width: true });
+  for (const b of ['Kitchen', 'Bar', 'Kopi']) {
+    const qty = Number(data.jumlahItem?.[b]) || 0;
+    if (!qty && !data.bagian?.[b]) continue;
+    out.push({ text: duaKolom(JUDUL_BAGIAN[b], rb(data.bagian?.[b])) });
+    out.push({ text: '  ' + qty + ' item' });
+  }
+
+  const menu = data.perMenu || [];
+  if (menu.length) {
+    out.push({ text: GARIS }, { text: 'MENU TERLARIS', width: true });
+    menu.slice(0, maxMenu).forEach((m, i) => {
+      out.push({ text: (i + 1) + '. ' + potong(m.nama, 21) + ' ' + m.qty + 'x' });
+      out.push({ text: duaKolom('   ' + (JUDUL_BAGIAN[m.bagian] || ''), rb(m.omzet)) });
+    });
+    if (menu.length > maxMenu) out.push({ text: '... ' + (menu.length - maxMenu) + ' menu lain' });
+  }
+
+  out.push(
+    { text: GARIS },
+    { text: 'Dicetak ' + new Date().toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }), center: true }
+  );
+  return out;
+}
+
+// ============ Cetak lewat APK Resto Kasir (WebView + bridge AndroidPrint, Bluetooth Classic SPP) ============
 export function bridgeApkAda() {
   return typeof window !== 'undefined' && !!window.AndroidPrint;
 }

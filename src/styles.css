@@ -138,6 +138,7 @@ body {
 .rule { border-top: 1px solid var(--line); margin: 10px 0; }
 .err { color: var(--danger); font-size: 13px; margin: 6px 0; }
 .ok { color: var(--ok); font-size: 13px; margin: 6px 0; }
+.cetak-st { font-size: 13px; margin: 6px 0; font-weight: 600; }
 .row {
   display: flex;
   justify-content: space-between;

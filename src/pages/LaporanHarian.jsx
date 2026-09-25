@@ -3,6 +3,7 @@ import { laporanHarian } from '../lib/laporanService';
 import { exportLaporanHarian } from '../lib/excelExport';
 import { uang, todayStr, metodeLabel, jamTgl } from '../lib/format';
 import { useSupabaseQuery } from '../lib/useSupabaseQuery';
+import { barisLaporanHarian, cetakWebBt, cetakViaApk, bridgeApkAda, putusWebBt } from '../lib/cetak';
 
 const BAGIAN = ['Kitchen', 'Bar', 'Kopi'];
 const METODE = ['tunai', 'qris', 'debit', 'hutang'];
@@ -10,13 +11,50 @@ const METODE = ['tunai', 'qris', 'debit', 'hutang'];
 export default function LaporanHarian() {
   const [tgl, setTgl] = useState(todayStr());
   const [busy, setBusy] = useState(false);
+  const [cetakSt, setCetakSt] = useState('');
   const [openId, setOpenId] = useState(null);
+  const [showMenu, setShowMenu] = useState(true);
   const q = useSupabaseQuery(() => laporanHarian(tgl), [tgl]);
   const d = q.data;
+  const diApk = bridgeApkAda();
 
   async function unduh() {
     setBusy(true);
     try { await exportLaporanHarian(d, `laporan-harian-${tgl}.xlsx`); } finally { setBusy(false); }
+  }
+
+  function baris() {
+    const b = barisLaporanHarian(d);
+    if (showMenu) return b;
+    const potong = b.findIndex((x) => x.text === 'MENU TERLARIS');
+    if (potong < 0) return b;
+    return b.slice(0, potong);
+  }
+
+  async function cetakBt() {
+    setBusy(true);
+    setCetakSt('Menghubungkan ke printer…');
+    try {
+      const nama = await cetakWebBt(baris());
+      setCetakSt('Tercetak ke ' + nama + ' ✓');
+    } catch (e) {
+      setCetakSt('Gagal: ' + e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function cetakApk() {
+    setBusy(true);
+    setCetakSt('Mengirim laporan ke printer…');
+    try {
+      cetakViaApk(baris());
+      setCetakSt('Laporan dikirim ✓ (periksa pemberitahuan APK)');
+    } catch (e) {
+      setCetakSt('Gagal: ' + e.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -29,6 +67,25 @@ export default function LaporanHarian() {
         </div>
         {q.error && <div className="err">{q.error.message}</div>}
         {q.loading && <p className="muted">Memuat…</p>}
+        {d && (
+          <>
+            <div className="bar" style={{ marginTop: 10 }}>
+              <span className="k-head" style={{ flex: 1 }}>🖨️ Cetak ke Bluetooth</span>
+              {diApk ? (
+                <button className="btn btn-primary" disabled={busy} onClick={cetakApk}>Cetak</button>
+              ) : (
+                <button className="btn btn-primary" disabled={busy} onClick={cetakBt}>Cetak BT Web</button>
+              )}
+              <button className="btn" onClick={() => window.print()}>Browser</button>
+              {!diApk && <button className="btn" onClick={() => { putusWebBt(); setCetakSt(''); }}>Putus BT</button>}
+            </div>
+            <label className="chk" style={{ marginTop: 6 }}>
+              <input type="checkbox" checked={showMenu} onChange={(e) => setShowMenu(e.target.checked)} />
+              Sertakan daftar menu terlaris
+            </label>
+            {cetakSt && <div className={'cetak-st ' + (cetakSt.includes('✓') ? 'ok' : 'err')}>{cetakSt}</div>}
+          </>
+        )}
       </div>
 
       {d && (
@@ -88,6 +145,24 @@ export default function LaporanHarian() {
             ))}
             <p className="muted small">Tax 3% hanya dari pembayaran EDC (Kartu/Cardless). Tunai, QRIS, dan Belum Bayar tidak menambah pajak.</p>
           </div>
+
+          {d.perMenu.length > 0 && (
+            <div className="card">
+              <div className="k-head">Menu Terlaris {d.tanggal}</div>
+              {d.perMenu.map((m, i) => (
+                <div className="row" key={m.produk_id}>
+                  <div className="row-main">
+                    <div><b>{i + 1}. {m.nama}</b> <span className="badge">{m.bagian}</span></div>
+                    <div className="muted small">{m.qty} x {uang(m.omzet / (m.qty || 1))} • {m.kelompok}</div>
+                  </div>
+                  <div className="row-end">
+                    <div><b>{m.qty}x</b></div>
+                    <div className="muted small">{uang(m.omzet)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {d.perJam.length > 0 && (
             <div className="card">
