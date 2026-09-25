@@ -54,7 +54,7 @@ function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy }) {
   }, [split, p.id]);
 
   function ubahQty(itemId, idx, val) {
-    const sumber = items.find((it) => it.id === itemId);
+    const sumber = itemsi.find((it) => it.id === itemId);
     const maks = Number(sumber?.qty) || 0;
     let v = Math.max(0, Math.min(maks, Number(val) || 0));
     const lain = Object.entries(assign[itemId] || {})
@@ -66,7 +66,7 @@ function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy }) {
 
   function pindahkanSemua(idx) {
     const a = {};
-    for (const it of items) a[it.id] = { ...(assign[it.id] || {}), [idx]: Number(it.qty) || 0 };
+    for (const it of itemsi) a[it.id] = { ...(assign[it.id] || {}), [idx]: Number(it.qty) || 0 };
     setAssign(a);
   }
 
@@ -75,7 +75,7 @@ function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy }) {
     const m = cara[i] || 'tunai';
     let sub = 0;
     const itemsPayer = [];
-    for (const it of items) {
+    for (const it of itemsi) {
       const q = Number(assign[it.id]?.[i]) || 0;
       if (q > 0) {
         sub += (Number(it.harga) || 0) * q;

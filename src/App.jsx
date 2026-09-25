@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Component } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { getProfile, onAuth, loadLogin } from './lib/authService';
 import Login from './pages/Login';
@@ -12,6 +12,32 @@ import Laporan from './pages/Laporan';
 import LaporanHarian from './pages/LaporanHarian';
 import Karyawan from './pages/Karyawan';
 import Dashboard from './pages/Dashboard';
+
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { err: null };
+  }
+  static getDerivedStateFromError(err) {
+    return { err };
+  }
+  componentDidCatch(err, info) {
+    console.error('Render error:', err, info);
+  }
+  render() {
+    if (!this.state.err) return this.props.children;
+    return (
+      <div className="page">
+        <div className="card">
+          <div className="k-head">Terjadi kesalahan di halaman ini</div>
+          <p className="muted">Halaman lain masih bisa dipakai. Muat ulang untuk mencoba lagi.</p>
+          <pre className="sql-box">{String(this.state.err?.message || this.state.err)}</pre>
+          <button className="btn btn-primary btn-block" onClick={() => window.location.reload()}>Muat Ulang</button>
+        </div>
+      </div>
+    );
+  }
+}
 
 function TidakAda({ judul, pesan }) {
   return (
@@ -43,7 +69,8 @@ export default function App() {
 
   return (
     <Layout user={user} onLogout={() => setUser(null)}>
-      <Routes>
+      <ErrorBoundary>
+        <Routes>
         <Route path="/" element={<POS user={user} />} />
         <Route
           path="/dashboard"
@@ -68,6 +95,7 @@ export default function App() {
           element={<TidakAda judul="Halaman tidak ditemukan" pesan="Alamat yang dibuka tidak ada. Mungkin aplikasi perlu diperbarui — tutup lalu buka lagi Dayang Resto." />}
         />
       </Routes>
+      </ErrorBoundary>
     </Layout>
   );
 }
