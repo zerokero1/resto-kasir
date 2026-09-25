@@ -3,12 +3,14 @@ import { supabase } from '../lib/supabase';
 import { uang, fmtTgl } from '../lib/format';
 import StrukModal from '../components/Struk';
 import PaymentModal from '../components/Payment';
+import TambahItemModal from '../components/TambahItem';
 
 export default function Hutang() {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [payFor, setPayFor] = useState(null);
   const [strukP, setStrukP] = useState(null);
+  const [editFor, setEditFor] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [needMigrasi, setNeedMigrasi] = useState(false);
@@ -92,6 +94,7 @@ update public.resto_pesanan set lunas = true where metode &lt;&gt; 'hutang';</pr
             <div className="row-end">
               <div><b>{uang(p.total)}</b></div>
               <div className="f-row end" style={{ margin: 0 }}>
+                <button className="btn btn-sm" onClick={() => { setAutoPrint(false); setEditFor(p); }}>➕ Orderan</button>
                 <button className="btn btn-sm" onClick={() => { setAutoPrint(false); setStrukP(p); }}>Struk</button>
                 <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => setPayFor(p)}>Bayar</button>
               </div>
@@ -103,6 +106,17 @@ update public.resto_pesanan set lunas = true where metode &lt;&gt; 'hutang';</pr
 
       {payFor && <PaymentModal p={payFor} onClose={() => setPayFor(null)} onBayar={bayar} busy={busy} />}
       {strukP && <StrukModal p={strukP} autoPrint={autoPrint} onClose={() => { setAutoPrint(false); setStrukP(null); }} />}
+      {editFor && (
+        <TambahItemModal
+          p={editFor}
+          onClose={() => setEditFor(null)}
+          onSimpan={async (data, cetak) => {
+            setEditFor(null);
+            await muat();
+            if (cetak) { setAutoPrint(true); setStrukP(data); }
+          }}
+        />
+      )}
     </div>
   );
 }

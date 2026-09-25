@@ -53,6 +53,73 @@ export async function simpanPesanan({ items, bayar, kembalian, metode, kasirId, 
   return pesanan;
 }
 
+export async function ambilItemPesanan(pesananId) {
+  const { data, error } = await supabase
+    .from('resto_pesanan_item')
+    .select('*')
+    .eq('pesanan_id', pesananId)
+    .order('id', { ascending: true });
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
+export async function tambahItemPesanan(pesanan, items) {
+  if (!items.length) return pesanan;
+  if (Number(pesanan.lunas) !== false) throw new Error('Nota sudah lunas — tidak bisa ditambah.');
+
+  const tambahan = items.reduce((s, i) => s + (Number(i.harga) || 0) * (Number(i.qty) || 1), 0);
+  const totalBaru = Number(pesanan.total) + tambahan;
+
+  const rows = items.map((i) => ({
+    pesanan_id: pesanan.id,
+    produk_id: i.produk_id,
+    nama: i.nama,
+    harga: i.harga,
+    qty: i.qty,
+    subtotal: (Number(i.harga) || 0) * (Number(i.qty) || 1)
+  }));
+  const { error: e1 } = await supabase.from('resto_pesanan_item').insert(rows);
+  if (e1) throw new Error(e1.message);
+
+  const { data, error: e2 } = await supabase
+    .from('resto_pesanan')
+    .update({ total: totalBaru, bayar: totalBaru, kembalian: 0 })
+    .eq('id', pesanan.id)
+    .select()
+    .single();
+  if (e2) throw new Error(e2.message);
+
+  await kurangiStokBahan(items);
+  return data;
+}
+
+export async function hapusItemPesanan(pesanan, itemId) {
+  if (Number(pesanan.lunas) !== false) throw new Error('Nota sudah lunas — tidak bisa diubah.');
+
+  const { data: item, error: e0 } = await supabase
+    .from('resto_pesanan_item')
+    .select('*')
+    .eq('id', itemId)
+    .single();
+  if (e0) throw new Error(e0.message);
+  if (item.pesanan_id !== pesanan.id) throw new Error('Item bukan milik nota ini.');
+
+  const { error: e1 } = await supabase.from('resto_pesanan_item').delete().eq('id', itemId);
+  if (e1) throw new Error(e1.message);
+
+  const totalBaru = Math.max(0, Number(pesanan.total) - Number(item.subtotal));
+  const { data, error: e2 } = await supabase
+    .from('resto_pesanan')
+    .update({ total: totalBaru, bayar: totalBaru, kembalian: 0 })
+    .eq('id', pesanan.id)
+    .select()
+    .single();
+  if (e2) throw new Error(e2.message);
+
+  await kembalikanStokBahan([item]);
+  return data;
+}
+
 async function kurangiStokBahan(items) {
   const menuIds = items.map((i) => i.produk_id).filter(Boolean);
   if (!menuIds.length) return;
@@ -79,5 +146,33 @@ async function kurangiStokBahan(items) {
     if (!b) continue;
     const baru = Math.max(0, (Number(b.stok) || 0) - qty);
     await supabase.from('resto_produk').update({ stok: baru }).eq('id', bahanId);
+  }
+}
+
+async function kembalikanStokBahan(items) {
+  const menuIds = items.map((i) => i.produk_id).filter(Boolean);
+  if (!menuIds.length) return;
+  const { data: resep } = await supabase
+    .from('resto_resep')
+    .select('bahan_id, qty, produk_id')
+    .in('produk_id', menuIds);
+  if (!resep || !resep.length) return;
+
+  const nat = items
+    .filter((i) => i.produk_id)
+    .map((i) => ({ pid: i.produk_id, qty: Number(i.qty) || 1 }));
+
+  const usage = {};
+  for (const r of resep) {
+    for (const it of nat) {
+      if (it.pid === r.produk_id) {
+        usage[r.bahan_id] = (usage[r.bahan_id] || 0) + (Number(r.qty) || 0) * it.qty;
+      }
+    }
+  }
+  for (const [bahanId, qty] of Object.entries(usage)) {
+    const { data: b } = await supabase.from('resto_produk').select('stok').eq('id', bahanId).single();
+    if (!b) continue;
+    await supabase.from('resto_produk').update({ stok: (Number(b.stok) || 0) + qty }).eq('id', bahanId);
   }
 }

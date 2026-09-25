@@ -5,6 +5,7 @@ import { exportTransaksi } from '../lib/excelExport';
 import { uang, todayStr, fmtTgl, metodeLabel } from '../lib/format';
 import StrukModal from '../components/Struk';
 import PaymentModal from '../components/Payment';
+import TambahItemModal from '../components/TambahItem';
 
 export default function Riwayat() {
   const [tanggal, setTanggal] = useState(todayStr());
@@ -12,6 +13,7 @@ export default function Riwayat() {
   const [total, setTotal] = useState(0);
   const [view, setView] = useState(null);
   const [payFor, setPayFor] = useState(null);
+  const [editFor, setEditFor] = useState(null);
   const [autoPrint, setAutoPrint] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -77,6 +79,15 @@ export default function Riwayat() {
             <div className="row-main">
               <div><b>{p.id}</b>{p.lunas === false && <span className="badge-utang">belum bayar</span>}</div>
               <div className="muted small">{fmtTgl(p.tanggal)} • {p.nama_kasir || '-'} • {metodeLabel(p.metode)}</div>
+              {p.lunas === false && (
+                <button
+                  className="btn btn-sm"
+                  style={{ marginTop: 6 }}
+                  onClick={(e) => { e.stopPropagation(); setAutoPrint(false); setEditFor(p); }}
+                >
+                  ➕ Tambah / Ubah Orderan
+                </button>
+              )}
             </div>
             <div className="row-end"><b>{uang(p.total)}</b><span className="muted small">{p.lunas === false ? 'klik → bayar' : 'lihat ›'}</span></div>
           </div>
@@ -85,6 +96,17 @@ export default function Riwayat() {
       </div>
       {view && <StrukModal p={view} autoPrint={autoPrint} onClose={() => { setAutoPrint(false); setView(null); }} />}
       {payFor && <PaymentModal p={payFor} onClose={() => setPayFor(null)} onBayar={bayar} busy={busy} />}
+      {editFor && (
+        <TambahItemModal
+          p={editFor}
+          onClose={() => setEditFor(null)}
+          onSimpan={async (data, cetak) => {
+            setEditFor(null);
+            await muat();
+            if (cetak) { setAutoPrint(true); setView(data); }
+          }}
+        />
+      )}
     </div>
   );
 }
