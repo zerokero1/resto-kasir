@@ -47,15 +47,24 @@ export default function StrukModal({ p, onClose, autoPrint }) {
       { text: Number(it.subtotal).toLocaleString('id-ID') }
     ]),
     { text: '===============================' },
-    { text: 'TOTAL', width: true },
-    { text: Number(p.total).toLocaleString('id-ID'), width: true },
-    ...(p.lunas !== false
-      ? [
-          { text: 'Metode: ' + metodeLabel(p.metode) },
-          { text: 'Bayar: ' + Number(p.bayar).toLocaleString('id-ID') },
-          { text: 'Kembalian: ' + Number(p.kembalian).toLocaleString('id-ID') }
-        ]
-      : []),
+    ...(() => {
+      const totalItem = itemRows.reduce((s, it) => s + (Number(it.subtotal) || 0), 0);
+      const totalNota = Number(p.total) || 0;
+      const selisih = totalNota - totalItem;
+      return [
+        ...(selisih > 0 ? [{ text: 'Tax/biaya tambahan' }, { text: selisih.toLocaleString('id-ID') }] : []),
+        { text: '===============================' },
+        { text: 'TOTAL', width: true },
+        { text: totalNota.toLocaleString('id-ID'), width: true },
+        ...(p.lunas !== false
+          ? [
+              { text: 'Metode: ' + metodeLabel(p.metode) },
+              { text: 'Bayar: ' + Number(p.bayar).toLocaleString('id-ID') },
+              { text: 'Kembalian: ' + Number(p.kembalian).toLocaleString('id-ID') }
+            ]
+          : [])
+      ];
+    })(),
     { text: '===============================' },
     { text: 'Terima kasih', center: true },
     { text: 'Semoga harimu menyenangkan', center: true }
@@ -158,6 +167,14 @@ export default function StrukModal({ p, onClose, autoPrint }) {
               </div>
             ))
           )}
+          {(() => {
+            const totalItem = itemRows.reduce((s, it) => s + (Number(it.subtotal) || 0), 0);
+            const totalNota = Number(p.total) || 0;
+            const selisih = totalNota - totalItem;
+            return selisih > 0 ? (
+              <div className="s-item"><span>Tax/biaya tambahan</span><span>{selisih.toLocaleString('id-ID')}</span></div>
+            ) : null;
+          })()}
           <div className="s-rule" />
           <div className="s-item"><b>TOTAL</b><b>{Number(p.total).toLocaleString('id-ID')}</b></div>
           {p.lunas !== false && (

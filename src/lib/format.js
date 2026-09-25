@@ -9,6 +9,13 @@ export function angka(n) {
   return Number(n) || 0;
 }
 
+export const PAJAK_EDC_PERSEN = 3;
+
+export function hitungPajakEdc(nilaiDasar, persen = PAJAK_EDC_PERSEN) {
+  const dasar = Number(nilaiDasar) || 0;
+  return Math.round(dasar * (1 + persen / 100));
+}
+
 export function fmtTgl(ts) {
   if (!ts) return '';
   const d = new Date(ts);

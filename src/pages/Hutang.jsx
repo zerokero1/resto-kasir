@@ -44,18 +44,23 @@ export default function Hutang() {
     return () => { supabase.removeChannel(ch); };
   }, [muat]);
 
-  async function bayar(p, metode, bayarMasuk) {
+  async function bayar(p, metode, bayarMasuk, totalFinal) {
     setBusy(true);
     try {
+      const total = Number(totalFinal || p.total);
       const jumlah = Number(bayarMasuk) || 0;
       const body = {
         lunas: true,
         tanggal_lunas: new Date().toISOString(),
         metode,
-        bayar: metode === 'tunai' ? jumlah : Number(p.total),
-        kembalian: metode === 'tunai' ? Math.max(0, jumlah - Number(p.total)) : 0
+        total,
+        bayar: jumlah > 0 ? jumlah : total,
+        kembalian: metode === 'tunai' ? Math.max(0, jumlah - total) : 0
       };
-      if (metode === 'tunai' && jumlah < Number(p.total)) throw new Error('Uang dibayar kurang dari total.');
+      if (metode === 'tunai' && jumlah < total) throw new Error('Uang dibayar kurang dari total.');
+      if (metode !== 'tunai' && jumlah > 0 && jumlah < total) {
+        throw new Error('Nominal mesin kurang dari total ' + uang(total) + '.');
+      }
       const { data, error } = await supabase.from('resto_pesanan').update(body).eq('id', p.id).select().single();
       if (error) throw new Error(error.message);
       setPayFor(null);

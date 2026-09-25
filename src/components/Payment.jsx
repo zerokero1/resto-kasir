@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { uang } from '../lib/format';
+import { uang, hitungPajakEdc, PAJAK_EDC_PERSEN } from '../lib/format';
 
 export const METODES_BAYAR = [
   { v: 'tunai', label: '💵 Tunai', desc: 'Bayar langsung dengan uang tunai' },
@@ -10,20 +10,31 @@ export const METODES_BAYAR = [
 export default function PaymentModal({ p, onClose, onBayar, busy }) {
   const [metode, setMetode] = useState('tunai');
   const [bayar, setBayar] = useState('');
-  const total = Number(p.total);
+  const totalMenu = Number(p.total);
+  const pakaiPajak = metode === 'debit';
+  const total = pakaiPajak ? hitungPajakEdc(totalMenu) : totalMenu;
+  const pajak = total - totalMenu;
   const uangBayar = Number(bayar) || 0;
   const kembalian = Math.max(0, uangBayar - total);
 
   function kirim(e) {
     e.preventDefault();
-    onBayar(p, metode, bayar);
+    onBayar(p, metode, bayar, total);
   }
 
   return (
     <div className="overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="card">
         <div className="k-head">Terima Pembayaran</div>
-        <div className="total-line">{p.id} — total <b>{uang(total)}</b></div>
+        <div className="total-line">{p.id} — total <b>{uang(totalMenu)}</b></div>
+        {pakaiPajak && (
+          <div className="total-line">
+            Tax {PAJAK_EDC_PERSEN}% EDC: <b>{uang(pajak)}</b>
+          </div>
+        )}
+        <div className="total-line" style={{ fontSize: 17 }}>
+          Total dibayar: <b>{uang(total)}</b>
+        </div>
         <label className="lbl">Metode pembayaran yang dipilih customer</label>
         <div className="pay-methods">
           {METODES_BAYAR.map((m) => (
@@ -34,7 +45,7 @@ export default function PaymentModal({ p, onClose, onBayar, busy }) {
             </button>
           ))}
         </div>
-        {metode === 'tunai' && (
+        {metode === 'tunai' ? (
           <>
             <label className="lbl">Uang dibayar customer</label>
             <input className="input" type="number" inputMode="numeric" placeholder="Uang tunai" value={bayar} onChange={(e) => setBayar(e.target.value)} />
@@ -49,14 +60,42 @@ export default function PaymentModal({ p, onClose, onBayar, busy }) {
               <div className="total-line">Kembalian: <b>{uang(kembalian)}</b></div>
             )}
           </>
+        ) : (
+          <>
+            <label className="lbl">Nominal yang tertera di mesin EDC / QRIS</label>
+            <input
+              className="input"
+              type="number"
+              inputMode="numeric"
+              placeholder={String(total)}
+              value={bayar}
+              onChange={(e) => setBayar(e.target.value)}
+            />
+            <div className="f-row">
+              <button className="btn btn-sm" onClick={() => setBayar('')}>Kosongkan</button>
+              <button className="btn btn-sm" onClick={() => setBayar(String(total))}>
+                {metode === 'debit' ? 'Bayar Pas ' + uang(total) : 'Bayar Pas ' + uang(total)}
+              </button>
+            </div>
+            <div className="muted small" style={{ marginTop: 6 }}>
+              {metode === 'debit'
+                ? 'Mesin EDC menambah tax ' + PAJAK_EDC_PERSEN + '% dari ' + uang(totalMenu) + '. Cocokkan nominal di layar mesin, lalu masukkan di atas bila berbeda.'
+                : 'Masukkan nominal yang tertera di aplikasi QRIS.'}
+            </div>
+          </>
         )}
         <div className="rule" />
         <div className="f-row end">
           <button className="btn" onClick={onClose} disabled={busy}>Batal</button>
           <button className="btn btn-primary" disabled={busy || !metode} onClick={kirim}>{busy ? 'Memproses…' : 'Bayar & Lunas'}</button>
         </div>
-        {metode === 'tunai' && uangBayar > 0 && uangBayar < total && (
-          <div className="err">Uang kurang {uang(total - uangBayar)} dari total.</div>
+        {uangBayar > 0 && uangBayar < total && (
+          <div className="err">
+            {metode === 'tunai' ? 'Uang kurang' : 'Nominal kurang'} {uang(total - uangBayar)} dari total {uang(total)}.
+          </div>
+        )}
+        {!pakaiPajak && metode !== 'tunai' && (
+          <div className="muted small">Total tanpa tax — QRIS tidak menambah pajak.</div>
         )}
       </div>
     </div>
