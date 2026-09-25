@@ -10,6 +10,7 @@ export default function Hutang() {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [payFor, setPayFor] = useState(null);
+  const [splitOpen, setSplitOpen] = useState(false);
   const [strukP, setStrukP] = useState(null);
   const [editFor, setEditFor] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -115,7 +116,8 @@ update public.resto_pesanan set lunas = true where metode &lt;&gt; 'hutang';</pr
               <div className="f-row end" style={{ margin: 0 }}>
                 <button className="btn btn-sm" onClick={() => { setAutoPrint(false); setEditFor(p); }}>➕ Orderan</button>
                 <button className="btn btn-sm" onClick={() => { setAutoPrint(false); setStrukP(p); }}>Struk</button>
-                <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => setPayFor(p)}>💳 Bayar / Split</button>
+                <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => { setSplitOpen(false); setPayFor(p); }}>💳 Bayar</button>
+                <button className="btn btn-sm" disabled={busy} onClick={() => { setSplitOpen(true); setPayFor(p); }}>🔀 Split Bill</button>
               </div>
             </div>
           </div>
@@ -127,7 +129,8 @@ update public.resto_pesanan set lunas = true where metode &lt;&gt; 'hutang';</pr
       {payFor && (
         <PaymentModal
           p={payFor}
-          onClose={() => setPayFor(null)}
+          mulaiSplit={splitOpen}
+          onClose={() => { setSplitOpen(false); setPayFor(null); }}
           onBayar={bayar}
           onBayarSplit={bayarSplit}
           busy={busy}

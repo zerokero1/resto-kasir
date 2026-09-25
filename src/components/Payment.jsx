@@ -15,10 +15,10 @@ export function hitungBagian(subtotalMenu, metode) {
   return { total, pajak: total - (Number(subtotalMenu) || 0) };
 }
 
-function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy }) {
+function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy, mulaiSplit }) {
   const [metode, setMetode] = useState('tunai');
   const [bayar, setBayar] = useState('');
-  const [split, setSplit] = useState(false);
+  const [split, setSplit] = useState(!!mulaiSplit);
   const [items, setItems] = useState(null);
   const [itemErr, setItemErr] = useState('');
   const [jumlahPayer, setJumlahPayer] = useState(2);
@@ -182,6 +182,11 @@ function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy }) {
           <button className={'btn btn-sm' + (split ? '' : ' btn-ghost')} onClick={() => setSplit(false)}>Bayar biasa</button>
           <button className={'btn btn-sm' + (split ? '' : ' btn-ghost')} onClick={() => setSplit(true)}>Split bill</button>
         </div>
+        {split && itemsSiap && (
+          <div className="total-line" style={{ fontWeight: 700 }}>
+            Mode Split Bill — bagi item ke tiap orang di bawah.
+          </div>
+        )}
 
         {!split && (
           <>

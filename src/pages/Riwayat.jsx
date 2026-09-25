@@ -14,6 +14,7 @@ export default function Riwayat() {
   const [total, setTotal] = useState(0);
   const [view, setView] = useState(null);
   const [payFor, setPayFor] = useState(null);
+  const [splitOpen, setSplitOpen] = useState(false);
   const [editFor, setEditFor] = useState(null);
   const [autoPrint, setAutoPrint] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -56,6 +57,7 @@ export default function Riwayat() {
       const { data, error } = await supabase.from('resto_pesanan').update(body).eq('id', p.id).select().single();
       if (error) throw new Error(error.message);
       setPayFor(null);
+      setSplitOpen(false);
       setAutoPrint(true);
       setView(data);
       await muat();
@@ -67,6 +69,7 @@ export default function Riwayat() {
     try {
       const hasil = await simpanSplitBayar(p, parts);
       setPayFor(null);
+      setSplitOpen(false);
       await muat();
       setAutoPrint(true);
       setView(hasil[0]);
@@ -94,7 +97,7 @@ export default function Riwayat() {
         <div className="total-line">Total {tanggal} : <b>{uang(total)}</b> ({rows.length} nota)</div>
         {rows.length === 0 && <p className="muted">Belum ada transaksi.</p>}
         {rows.map((p) => (
-          <div className="row" key={p.id} onClick={() => (p.lunas === false ? setPayFor(p) : setView(p))}>
+          <div className="row" key={p.id} onClick={() => (p.lunas === false ? (setSplitOpen(false), setPayFor(p)) : setView(p))}>
             <div className="row-main">
               <div><b>{p.id}</b>{p.lunas === false && <span className="badge-utang">belum bayar</span>}</div>
               <div className="muted small">{fmtTgl(p.tanggal)} • {p.nama_kasir || '-'} • {metodeLabel(p.metode)}</div>
@@ -105,14 +108,21 @@ export default function Riwayat() {
                     style={{ marginTop: 6 }}
                     onClick={(e) => { e.stopPropagation(); setAutoPrint(false); setEditFor(p); }}
                   >
-                    ➕ Tambah / Ubah Orderan
+                    ➕ Ubah Orderan
                   </button>
                   <button
                     className="btn btn-sm btn-primary"
                     style={{ marginTop: 6 }}
-                    onClick={(e) => { e.stopPropagation(); setPayFor(p); }}
+                    onClick={(e) => { e.stopPropagation(); setSplitOpen(false); setPayFor(p); }}
                   >
-                    💳 Bayar / Split Bill
+                    💳 Bayar
+                  </button>
+                  <button
+                    className="btn btn-sm"
+                    style={{ marginTop: 6 }}
+                    onClick={(e) => { e.stopPropagation(); setSplitOpen(true); setPayFor(p); }}
+                  >
+                    🔀 Split Bill
                   </button>
                 </div>
               )}
@@ -127,7 +137,8 @@ export default function Riwayat() {
       {payFor && (
         <PaymentModal
           p={payFor}
-          onClose={() => setPayFor(null)}
+          mulaiSplit={splitOpen}
+          onClose={() => { setSplitOpen(false); setPayFor(null); }}
           onBayar={bayar}
           onBayarSplit={bayarSplit}
           busy={busy}
