@@ -142,6 +142,44 @@ export async function exportPemakaian(rows, fileName = 'pemakaian-stok.xlsx') {
   unduh(buf, fileName);
 }
 
+// data: hasil pendapatanPerBagian() — pisahkan tax 3% (EDC) dan bagi per bagian
+export async function exportPendapatanBagian(data, fileName = 'pendapatan-bagian.xlsx') {
+  const wb = bukaBuku();
+  const d = data || {};
+  const bagian = d.bagian || { Kitchen: 0, Bar: 0, Kopi: 0 };
+  const jml = d.jumlahItem || { Kitchen: 0, Bar: 0, Kopi: 0 };
+  const namaBagian = { Kitchen: 'Kitchen', Bar: 'Bar', Kopi: 'Kopi' };
+
+  const ws = wb.addWorksheet('Pendapatan per Bagian');
+  ws.columns = [
+    { header: 'Bagian', key: 'bagian', width: 16 },
+    { header: 'Omzet (tanpa tax)', key: 'omzet', width: 20, style: { numFmt: '#,##0' } },
+    { header: 'Item Terjual', key: 'qty', width: 14, style: { numFmt: '#,##0' } }
+  ];
+  for (const k of Object.keys(namaBagian)) {
+    ws.addRow({ bagian: namaBagian[k], omzet: bagian[k] || 0, qty: jml[k] || 0 });
+  }
+  ws.addRow({});
+  ws.addRow({ bagian: 'Total Revenue tanpa 3%', omzet: d.totalTanpaPajak || 0 });
+  ws.addRow({ bagian: 'Total Revenue 3%', omzet: d.totalPajak3 || 0 });
+  ws.addRow({ bagian: 'TOTAL REVENUE', omzet: d.totalRevenue || 0 });
+  ws.getRow(1).font = { bold: true };
+  ws.getRow(ws.rowCount).font = { bold: true };
+
+  const wsk = wb.addWorksheet('Per Kelompok');
+  wsk.columns = [
+    { header: 'Kelompok', key: 'kelompok', width: 22 },
+    { header: 'Bagian', key: 'bagian', width: 12 },
+    { header: 'Omzet (tanpa tax)', key: 'omzet', width: 20, style: { numFmt: '#,##0' } },
+    { header: 'Qty', key: 'qty', width: 12, style: { numFmt: '#,##0' } }
+  ];
+  for (const r of d.perKelompok || []) wsk.addRow(r);
+  wsk.getRow(1).font = { bold: true };
+
+  const buf = await wb.xlsx.writeBuffer();
+  unduh(buf, fileName);
+}
+
 // rows: [{ tanggal, bahan, satuan, masuk, keluar, sisa }] pengeluaran stok harian
 export async function exportPengeluaranStok(rows, fileName = 'pengeluaran-stok.xlsx') {
   const wb = bukaBuku();

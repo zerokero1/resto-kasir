@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react';
-import { laporanStok, rekapHarian, transaksiTanggal, absensiRentang, transaksiRentang, mutasiStokBahan, agregasiMutasi, pemakaianTanggal, pengeluaranStokHarian } from '../lib/laporanService';
-import { exportLaporanStok, exportRekapHarian, exportTransaksi, exportAbsensi, exportMutasiStok, exportPemakaian, exportPengeluaranStok } from '../lib/excelExport';
+import { laporanStok, rekapHarian, transaksiTanggal, absensiRentang, transaksiRentang, mutasiStokBahan, agregasiMutasi, pemakaianTanggal, pengeluaranStokHarian, pendapatanPerBagian } from '../lib/laporanService';
+import { exportLaporanStok, exportRekapHarian, exportTransaksi, exportAbsensi, exportMutasiStok, exportPemakaian, exportPengeluaranStok, exportPendapatanBagian } from '../lib/excelExport';
 import { uang, todayStr, fmtTgl } from '../lib/format';
 import { useSupabaseQuery } from '../lib/useSupabaseQuery';
 
-const TABS = ['Stok', 'Rekap Harian', 'Transaksi', 'Absensi', 'Stok Masuk/Keluar', 'Pemakaian Stok', 'Pengeluaran Stok'];
+const TABS = ['Stok', 'Rekap Harian', 'Transaksi', 'Absensi', 'Stok Masuk/Keluar', 'Pemakaian Stok', 'Pengeluaran Stok', 'Pendapatan per Bagian'];
 const MODE_LABEL = { harian: 'Harian', mingguan: 'Mingguan', bulanan: 'Bulanan' };
 
 function Memuat({ q }) {
@@ -27,6 +27,7 @@ export default function Laporan() {
   const mutQ = useSupabaseQuery(() => mutasiStokBahan(dari, sampai), [dari, sampai]);
   const pemQ = useSupabaseQuery(() => pemakaianTanggal(tgl), [tgl]);
   const pengQ = useSupabaseQuery(() => pengeluaranStokHarian(dari, sampai), [dari, sampai]);
+  const bagQ = useSupabaseQuery(() => pendapatanPerBagian(dari, sampai), [dari, sampai]);
 
   const mutAgg = useMemo(() =>
     agregasiMutasi(mutQ.data || { masuk: [], keluar: [] }, mode),
@@ -49,6 +50,7 @@ export default function Laporan() {
     : tab === 'Absensi' ? absQ.error
     : tab === 'Stok Masuk/Keluar' ? mutQ.error
     : tab === 'Pemakaian Stok' ? pemQ.error
+    : tab === 'Pendapatan per Bagian' ? bagQ.error
     : pengQ.error;
 
   return (
@@ -210,6 +212,69 @@ export default function Laporan() {
               <div className="row-end"><b>{Number(b.qty).toLocaleString('id-ID')}</b> terpakai</div>
             </div>
           ))}
+        </div>
+      )}
+
+      {tab === 'Pendapatan per Bagian' && (
+        <div className="card">
+          <div className="bar">
+            <span className="k-head">Laporan Pendapatan</span>
+            <input className="input" type="date" value={dari} onChange={(e) => setDari(e.target.value)} />
+            <input className="input" type="date" value={sampai} onChange={(e) => setSampai(e.target.value)} />
+            <button className="btn" disabled={busy} onClick={() => run('b', () => exportPendapatanBagian(bagQ.data, `pendapatan-bagian-${dari}-${sampai}.xlsx`))}>⬇️ Excel</button>
+          </div>
+          <Memuat q={bagQ} />
+          {bagQ.data && (
+            <>
+              <div className="mut-detail" style={{ marginTop: 8 }}>
+                <div className="p-row" style={{ fontSize: 16 }}>
+                  <b>Total Revenue tanpa 3%</b>
+                  <span className="p-cell" style={{ fontSize: 16 }}><b>{uang(bagQ.data.totalTanpaPajak)}</b></span>
+                </div>
+                <div className="p-row" style={{ fontSize: 16 }}>
+                  <b>Total Revenue 3%</b>
+                  <span className="p-cell" style={{ fontSize: 16 }}><b>{uang(bagQ.data.totalPajak3)}</b></span>
+                </div>
+                <div className="p-row" style={{ fontSize: 17, borderTop: '2px solid #333' }}>
+                  <b>TOTAL REVENUE</b>
+                  <span className="p-cell" style={{ fontSize: 17 }}><b>{uang(bagQ.data.totalRevenue)}</b></span>
+                </div>
+                <div className="p-row muted small">
+                  <span>{bagQ.data.jumlahNota} transaksi • {bagQ.data.itemTerjual} item terjual</span>
+                </div>
+              </div>
+
+              <p className="muted small" style={{ marginTop: 12 }}>Pendapatan per bagian (tanpa tax 3%)</p>
+              {['Kitchen', 'Bar', 'Kopi'].map((b) => {
+                const v = bagQ.data.bagian[b] || 0;
+                const pct = bagQ.data.totalTanpaPajak ? (v / bagQ.data.totalTanpaPajak) * 100 : 0;
+                return (
+                  <div className="row" key={b}>
+                    <div className="row-main">
+                      <div><b>{b}</b></div>
+                      <div className="muted small">{Number(bagQ.data.jumlahItem[b] || 0).toLocaleString('id-ID')} item • {pct.toFixed(1)}%</div>
+                    </div>
+                    <div className="row-end"><b>{uang(v)}</b></div>
+                  </div>
+                );
+              })}
+
+              <p className="muted small" style={{ marginTop: 12 }}>Rincian per kelompok menu</p>
+              {bagQ.data.perKelompok.map((k) => (
+                <div className="row" key={k.kelompok}>
+                  <div className="row-main">
+                    <div><b>{k.kelompok}</b> <span className="badge">{k.bagian}</span></div>
+                    <div className="muted small">{Number(k.qty).toLocaleString('id-ID')} item</div>
+                  </div>
+                  <div className="row-end"><b>{uang(k.omzet)}</b></div>
+                </div>
+              ))}
+              <p className="muted small" style={{ marginTop: 10 }}>
+                Tax 3% hanya dihitung dari pembayaran EDC (debit). Tunai &amp; QRIS tidak menambah pajak.
+                Bar: Smoothie Bowl, Coconut, Soft Drink, Air Mineral. Kopi: semua menu kopi, matcha, tea, juice, milkshake, smoothies.
+              </p>
+            </>
+          )}
         </div>
       )}
 
