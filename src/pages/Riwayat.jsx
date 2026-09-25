@@ -99,13 +99,22 @@ export default function Riwayat() {
               <div><b>{p.id}</b>{p.lunas === false && <span className="badge-utang">belum bayar</span>}</div>
               <div className="muted small">{fmtTgl(p.tanggal)} • {p.nama_kasir || '-'} • {metodeLabel(p.metode)}</div>
               {p.lunas === false && (
-                <button
-                  className="btn btn-sm"
-                  style={{ marginTop: 6 }}
-                  onClick={(e) => { e.stopPropagation(); setAutoPrint(false); setEditFor(p); }}
-                >
-                  ➕ Tambah / Ubah Orderan
-                </button>
+                <div className="f-row" style={{ marginTop: 6 }}>
+                  <button
+                    className="btn btn-sm"
+                    style={{ marginTop: 6 }}
+                    onClick={(e) => { e.stopPropagation(); setAutoPrint(false); setEditFor(p); }}
+                  >
+                    ➕ Tambah / Ubah Orderan
+                  </button>
+                  <button
+                    className="btn btn-sm btn-primary"
+                    style={{ marginTop: 6 }}
+                    onClick={(e) => { e.stopPropagation(); setPayFor(p); }}
+                  >
+                    💳 Bayar / Split Bill
+                  </button>
+                </div>
               )}
             </div>
             <div className="row-end"><b>{uang(p.total)}</b><span className="muted small">{p.lunas === false ? 'klik → bayar' : 'lihat ›'}</span></div>

@@ -115,7 +115,7 @@ update public.resto_pesanan set lunas = true where metode &lt;&gt; 'hutang';</pr
               <div className="f-row end" style={{ margin: 0 }}>
                 <button className="btn btn-sm" onClick={() => { setAutoPrint(false); setEditFor(p); }}>➕ Orderan</button>
                 <button className="btn btn-sm" onClick={() => { setAutoPrint(false); setStrukP(p); }}>Struk</button>
-                <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => setPayFor(p)}>Bayar</button>
+                <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => setPayFor(p)}>💳 Bayar / Split</button>
               </div>
             </div>
           </div>

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
+import { supabase } from '../lib/supabase';
 import { ambilProduk, KELOMPOK_POS } from '../lib/produkService';
-import { simpanPesanan } from '../lib/pesananService';
+import { simpanPesanan, simpanSplitBayar } from '../lib/pesananService';
 import { uang } from '../lib/format';
 import StrukModal from '../components/Struk';
+import PaymentModal from '../components/Payment';
 
 export default function POS({ user }) {
   const [produk, setProduk] = useState([]);
@@ -10,6 +12,8 @@ export default function POS({ user }) {
   const [cart, setCart] = useState([]);
   const [catatan, setCatatan] = useState('');
   const [pesanan, setPesanan] = useState(null);
+  const [payFor, setPayFor] = useState(null);
+  const [info, setInfo] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -43,7 +47,7 @@ export default function POS({ user }) {
 
   async function simpan() {
     if (!cart.length) return;
-    setErr(''); setBusy(true);
+    setErr(''); setInfo(''); setBusy(true);
     try {
       const p = await simpanPesanan({
         items: cart, metode: 'hutang', bayar: 0, kembalian: 0,
@@ -56,6 +60,40 @@ export default function POS({ user }) {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function bayar(p, metode, bayarMasuk, totalFinal) {
+    setBusy(true);
+    try {
+      const total = Number(totalFinal || p.total);
+      const jumlah = Number(bayarMasuk) || 0;
+      if (metode === 'tunai' && jumlah < total) throw new Error('Uang dibayar kurang dari total.');
+      if (metode !== 'tunai' && jumlah > 0 && jumlah < total) {
+        throw new Error('Nominal mesin kurang dari total ' + uang(total) + '.');
+      }
+      const body = {
+        lunas: true,
+        tanggal_lunas: new Date().toISOString(),
+        metode,
+        total,
+        bayar: jumlah > 0 ? jumlah : total,
+        kembalian: metode === 'tunai' ? Math.max(0, jumlah - total) : 0
+      };
+      const { data, error } = await supabase.from('resto_pesanan').update(body).eq('id', p.id).select().single();
+      if (error) throw new Error(error.message);
+      setPayFor(null);
+      setPesanan(data);
+    } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  }
+
+  async function bayarSplit(p, parts) {
+    setBusy(true);
+    try {
+      const hasil = await simpanSplitBayar(p, parts);
+      setPayFor(null);
+      setPesanan(hasil[0]);
+      setInfo('Split tersimpan: ' + hasil.map((x) => x.id).join(' • '));
+    } catch (e) { setErr(e.message); } finally { setBusy(false); }
   }
 
   return (
@@ -103,14 +141,43 @@ export default function POS({ user }) {
           <div className="total-row"><span>Total</span><span className="total-num">{uang(total)}</span></div>
           <input className="input" placeholder="Catatan / nama pelanggan (opsional)" value={catatan} onChange={(e) => setCatatan(e.target.value)} />
           {err && <div className="err">{err}</div>}
-          <button className="btn btn-primary btn-block" disabled={busy || !cart.length} onClick={simpan}>
-            {busy ? 'Menyimpan…' : 'Simpan & Cetak Nota'}
-          </button>
-          <p className="muted small" style={{ marginTop: 8 }}>Pembayaran dilakukan nanti lewat halaman <b>Riwayat</b> — klik nota yang belum dibayar.</p>
+          {info && <div className="total-line">{info}</div>}
+          <div className="f-row" style={{ marginTop: 8 }}>
+            <button className="btn btn-primary" style={{ flex: 1 }} disabled={busy || !cart.length} onClick={simpan}>
+              {busy ? 'Menyimpan…' : 'Simpan Saja'}
+            </button>
+            <button className="btn" style={{ flex: 1 }} disabled={busy || !cart.length} onClick={async () => {
+              setErr(''); setInfo(''); setBusy(true);
+              try {
+                const p = await simpanPesanan({
+                  items: cart, metode: 'hutang', bayar: 0, kembalian: 0,
+                  kasirId: user.id, namaKasir: user.nama, catatan
+                });
+                setCart([]); setCatatan('');
+                setPesanan(null);
+                setPayFor(p);
+              } catch (e) { setErr(e.message); } finally { setBusy(false); }
+            }}>
+              💳 Bayar / Split Bill
+            </button>
+          </div>
+          <p className="muted small" style={{ marginTop: 8 }}>
+            <b>Bayar / Split Bill</b> membuka pembayaran di sini — bisa pilih Tunai, EDC, QRIS, atau <b>Split bill</b> kalau pembayaran dipecah.
+            Pilih <b>Simpan Saja</b> untuk menunda pembayaran (nota jadi belum bayar).
+          </p>
         </div>
       </div>
 
       {pesanan && <StrukModal p={pesanan} autoPrint onClose={() => setPesanan(null)} />}
+      {payFor && (
+        <PaymentModal
+          p={payFor}
+          onClose={() => setPayFor(null)}
+          onBayar={bayar}
+          onBayarSplit={bayarSplit}
+          busy={busy}
+        />
+      )}
     </div>
   );
 }
