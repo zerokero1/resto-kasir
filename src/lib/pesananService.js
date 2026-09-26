@@ -28,25 +28,37 @@ export async function simpanPesanan({ items, bayar, kembalian, metode, kasirId, 
   if (!Array.isArray(items) || !items.length) throw new Error('Pesanan kosong — tidak bisa disimpan.');
   const total = items.reduce((s, i) => s + (Number(i.harga) || 0) * (Number(i.qty) || 1), 0);
   if (total <= 0) throw new Error('Total pesanan Rp 0 — periksa itemnya.');
-  const id = await idPesananBaru();
 
-  const { data: pesanan, error } = await supabase
-    .from('resto_pesanan')
-    .insert({
-      id,
-      total,
-      bayar: bayar ?? total,
-      kembalian: kembalian ?? 0,
-      metode,
-      user_id: kasirId,
-      nama_kasir: namaKasir,
-      catatan: catatan || null,
-      lunas: metode !== 'hutang',
-      tanggal_lunas: metode !== 'hutang' ? new Date().toISOString() : null
-    })
-    .select()
-    .single();
-  if (error) throw new Error(error.message);
+  // Nomor nota dihitung di luar database, jadi dua kasir yang menekan simpan
+  // bersamaan bisa mendapat nomor yang sama. Jika PostgreSQL menolak dengan
+  // 23505 (duplicate key), ambil nomor baru lalu coba lagi.
+  const body = (id) => ({
+    id,
+    total,
+    bayar: bayar ?? total,
+    kembalian: kembalian ?? 0,
+    metode,
+    user_id: kasirId,
+    nama_kasir: namaKasir,
+    catatan: catatan || null,
+    lunas: metode !== 'hutang',
+    tanggal_lunas: metode !== 'hutang' ? new Date().toISOString() : null
+  });
+
+  let pesanan = null;
+  let pesanError = '';
+  for (let percobaan = 1; percobaan <= 6; percobaan++) {
+    const id = await idPesananBaru();
+    const { data, error } = await supabase.from('resto_pesanan').insert(body(id)).select().single();
+    if (!error) { pesanan = data; break; }
+    pesanError = error.message;
+    if (error.code === '23505') continue;
+    throw new Error(error.message);
+  }
+  if (!pesanan) {
+    throw new Error('Gagal membuat nomor nota karena dipakai kasir lain. Silakan tekan Simpan sekali lagi. (' + pesanError + ')');
+  }
+  const id = pesanan.id;
 
   const itemRows = items.map((i) => ({
     pesanan_id: id,
@@ -225,7 +237,12 @@ export async function simpanSplitBayar(pesanan, parts) {
         })
         .select()
         .single();
-      if (e1) throw new Error(e1.message);
+      if (e1) {
+        // ID anak diturunkan dari id induk, jadi tabrakan berarti sisa split
+        // sebelumnya untuk nota ini belum bersih.
+        if (e1.code === '23505') throw new Error('Nota ' + idBaru + ' sudah ada dari percobaan split sebelumnya. Muat ulang halaman lalu coba lagi.');
+        throw new Error(e1.message);
+      }
       anak.push({ row, part });
 
       const itemRows = part.items.map((x) => {
