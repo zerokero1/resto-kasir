@@ -130,20 +130,19 @@ export async function hapusItemPesanan(pesanan, itemId) {
   if (e0) throw new Error(e0.message);
   if (item.pesanan_id !== pesanan.id) throw new Error('Item bukan milik nota ini.');
 
-  const { error: e1 } = await supabase.from('resto_pesanan_item').delete().eq('id', itemId);
-  if (e1) throw new Error(e1.message);
-
-  // Jangan sampai nota tertinggal tanpa item: sisa item ini harus dihapus lewat
-  // batalkanPesanan(), bukan satu per satu.
+  // Dicek SEBELUM delete: kalau ini item terakhir, tolak. Kalau dicek sesudah,
+  // nota justru tertinggal tanpa item dan totalnya tidak ikut turun.
   const { count: sisa, error: eC } = await supabase
     .from('resto_pesanan_item')
     .select('id', { count: 'exact', head: true })
     .eq('pesanan_id', pesanan.id);
   if (eC) throw new Error(eC.message);
-  if (!sisa) {
-    await supabase.from('resto_pesanan_item').delete().eq('pesanan_id', pesanan.id);
+  if ((sisa ?? 0) <= 1) {
     throw new Error('Item terakhir tidak bisa dihapus satu per satu. Gunakan "Batalkan Nota" untuk membatalkan pesanan ini.');
   }
+
+  const { error: e1 } = await supabase.from('resto_pesanan_item').delete().eq('id', itemId);
+  if (e1) throw new Error(e1.message);
 
   const totalBaru = Math.max(0, Number(pesanan.total) - Number(item.subtotal));
   const { data, error: e2 } = await supabase
