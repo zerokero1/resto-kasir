@@ -6,7 +6,7 @@ import { uang, todayStr, fmtTgl, metodeLabel } from '../lib/format';
 import StrukModal from '../components/Struk';
 import PaymentModal from '../components/Payment';
 import TambahItemModal from '../components/TambahItem';
-import { simpanSplitBayar } from '../lib/pesananService';
+import { simpanSplitBayar, batalkanPesanan } from '../lib/pesananService';
 
 export default function Riwayat() {
   const [tanggal, setTanggal] = useState(todayStr());
@@ -77,6 +77,17 @@ export default function Riwayat() {
     } catch (e) { setErr(e.message); } finally { setBusy(false); }
   }
 
+  async function batalkan(p) {
+    if (!window.confirm('Batalkan nota ' + p.id + '? Item dan stok akan dikembalikan. Tindakan ini tidak bisa dibatalkan.')) return;
+    setBusy(true);
+    setErr('');
+    try {
+      await batalkanPesanan(p);
+      setInfo('Nota ' + p.id + ' dibatalkan.');
+      await muat();
+    } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  }
+
   async function cetakExport() {
     setBusy(true);
     try {
@@ -123,6 +134,14 @@ export default function Riwayat() {
                     onClick={(e) => { e.stopPropagation(); setSplitOpen(true); setPayFor(p); }}
                   >
                     🔀 Split Bill
+                  </button>
+                  <button
+                    className="btn btn-sm btn-danger"
+                    style={{ marginTop: 6 }}
+                    disabled={busy}
+                    onClick={(e) => { e.stopPropagation(); batalkan(p); }}
+                  >
+                    ✕ Batalkan
                   </button>
                 </div>
               )}

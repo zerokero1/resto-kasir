@@ -111,6 +111,7 @@ body {
 }
 .btn:disabled { opacity: .5; }
 .btn-primary { background: var(--green); border-color: var(--green); color: #fff; }
+.btn-danger { background: transparent; border-color: var(--danger); color: var(--danger); }
 .btn-ghost { background: transparent; border-color: transparent; color: #fff; }
 .btn-block { display: block; width: 100%; margin-top: 6px; }
 .btn-sm { padding: 6px 10px; font-size: 12px; border-radius: 8px; }

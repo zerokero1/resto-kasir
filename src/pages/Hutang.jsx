@@ -4,7 +4,7 @@ import { uang, fmtTgl } from '../lib/format';
 import StrukModal from '../components/Struk';
 import PaymentModal from '../components/Payment';
 import TambahItemModal from '../components/TambahItem';
-import { simpanSplitBayar } from '../lib/pesananService';
+import { simpanSplitBayar, batalkanPesanan } from '../lib/pesananService';
 
 export default function Hutang() {
   const [rows, setRows] = useState([]);
@@ -78,10 +78,22 @@ export default function Hutang() {
     try {
       const hasil = await simpanSplitBayar(p, parts);
       setPayFor(null);
+      setSplitOpen(false);
       await muat();
       setAutoPrint(true);
       setStrukP(hasil[0]);
       setInfo('Split tersimpan: ' + hasil.map((x) => x.id).join(' • ') + '. Cetak struk tiap nota satu-satu dari daftar di atas.');
+    } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  }
+
+  async function batalkan(p) {
+    if (!window.confirm('Batalkan nota ' + p.id + '? Item dan stok akan dikembalikan. Tindakan ini tidak bisa dibatalkan.')) return;
+    setBusy(true);
+    setErr('');
+    try {
+      await batalkanPesanan(p);
+      setInfo('Nota ' + p.id + ' dibatalkan.');
+      await muat();
     } catch (e) { setErr(e.message); } finally { setBusy(false); }
   }
 
@@ -117,6 +129,7 @@ update public.resto_pesanan set lunas = true where metode &lt;&gt; 'hutang';</pr
                 <button className="btn btn-sm" onClick={() => { setAutoPrint(false); setEditFor(p); }}>➕ Orderan</button>
                 <button className="btn btn-sm" onClick={() => { setAutoPrint(false); setStrukP(p); }}>Struk</button>
                 <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => { setSplitOpen(false); setPayFor(p); }}>💳 Bayar</button>
+                <button className="btn btn-sm btn-danger" disabled={busy} onClick={() => batalkan(p)}>✕ Batalkan</button>
                 <button className="btn btn-sm" disabled={busy} onClick={() => { setSplitOpen(true); setPayFor(p); }}>🔀 Split Bill</button>
               </div>
             </div>

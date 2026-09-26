@@ -1,23 +1,33 @@
 import { supabase } from './supabase';
+import { tglWib } from './format';
 
+/**
+ * Nomor nota harian "TRX-YYYYMMDD-NNN" dengan tanggal versi WIB.
+ * Angka diambil dari NOMOR TERTINGGI yang sudah ada (bukan jumlah baris), lalu
+ * dilewati ke nomor berikutnya — jumlah baris bisa mundur saat ada nota dihapus
+ * sehingga sering menghasilkan ID yang bentrok.
+ */
 export async function idPesananBaru() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  const prefix = `TRX-${y}${m}${dd}-`;
+  const prefix = 'TRX-' + tglWib(new Date().toISOString()).replace(/-/g, '') + '-';
   const { data, error } = await supabase
     .from('resto_pesanan')
     .select('id')
     .gte('id', prefix)
     .lt('id', prefix + '\uffff');
   if (error) throw new Error(error.message);
-  const n = (data?.length ?? 0) + 1;
-  return prefix + String(n).padStart(3, '0');
+  let maks = 0;
+  for (const r of data || []) {
+    // abaikan nota anak split ("...-S2")
+    const m = String(r.id).slice(prefix.length).match(/^(\d{3})$/);
+    if (m) maks = Math.max(maks, Number(m[1]));
+  }
+  return prefix + String(maks + 1).padStart(3, '0');
 }
 
 export async function simpanPesanan({ items, bayar, kembalian, metode, kasirId, namaKasir, catatan }) {
+  if (!Array.isArray(items) || !items.length) throw new Error('Pesanan kosong — tidak bisa disimpan.');
   const total = items.reduce((s, i) => s + (Number(i.harga) || 0) * (Number(i.qty) || 1), 0);
+  if (total <= 0) throw new Error('Total pesanan Rp 0 — periksa itemnya.');
   const id = await idPesananBaru();
 
   const { data: pesanan, error } = await supabase
@@ -111,6 +121,18 @@ export async function hapusItemPesanan(pesanan, itemId) {
   const { error: e1 } = await supabase.from('resto_pesanan_item').delete().eq('id', itemId);
   if (e1) throw new Error(e1.message);
 
+  // Jangan sampai nota tertinggal tanpa item: sisa item ini harus dihapus lewat
+  // batalkanPesanan(), bukan satu per satu.
+  const { count: sisa, error: eC } = await supabase
+    .from('resto_pesanan_item')
+    .select('id', { count: 'exact', head: true })
+    .eq('pesanan_id', pesanan.id);
+  if (eC) throw new Error(eC.message);
+  if (!sisa) {
+    await supabase.from('resto_pesanan_item').delete().eq('pesanan_id', pesanan.id);
+    throw new Error('Item terakhir tidak bisa dihapus satu per satu. Gunakan "Batalkan Nota" untuk membatalkan pesanan ini.');
+  }
+
   const totalBaru = Math.max(0, Number(pesanan.total) - Number(item.subtotal));
   const { data, error: e2 } = await supabase
     .from('resto_pesanan')
@@ -122,6 +144,22 @@ export async function hapusItemPesanan(pesanan, itemId) {
 
   await kembalikanStokBahan([item]);
   return data;
+}
+
+/**
+ * Batalkan nota yang belum dibayar: hapus item, kembalikan stok, lalu hapus nota.
+ * Ini jalur yang benar untuk nota yang isinya sudah tidak relevan — mencegah
+ * nota yatim dengan 0 item dan total Rp 0.
+ */
+export async function batalkanPesanan(pesanan) {
+  if (!notaBisaDiubah(pesanan)) throw new Error('Nota sudah lunas — tidak bisa dibatalkan.');
+  const items = await ambilItemPesanan(pesanan.id);
+  await kembalikanStokBahan(items);
+  const { error: e1 } = await supabase.from('resto_pesanan_item').delete().eq('pesanan_id', pesanan.id);
+  if (e1) throw new Error(e1.message);
+  const { error: e2 } = await supabase.from('resto_pesanan').delete().eq('id', pesanan.id);
+  if (e2) throw new Error(e2.message);
+  return true;
 }
 
 /**
@@ -171,7 +209,10 @@ export async function simpanSplitBayar(pesanan, parts) {
         .from('resto_pesanan')
         .insert({
           id: idBaru,
-          tanggal: now,
+          // mewarisi tanggal induk: split adalah penjualan yang sama, jadi
+          // harus tetap masuk laporan hari yang sama walau dilakukan lewat
+          // tengah malam.
+          tanggal: pesanan.tanggal || now,
           total: Number(part.total) || 0,
           bayar: Number(part.bayar) || 0,
           kembalian: Number(part.kembalian) || 0,

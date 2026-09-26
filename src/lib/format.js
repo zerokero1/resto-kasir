@@ -44,12 +44,9 @@ export function metodeLabel(m) {
   return METODE[m] || m;
 }
 
+/** Tanggal hari ini versi WIB — bukan zona waktu perangkat, supaya tidak bergeser. */
 export function todayStr() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${dd}`;
+  return tglWib(new Date().toISOString());
 }
 
 // ---- Zona waktu usaha: WIB (UTC+7) ----
