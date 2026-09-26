@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { rentangUtcWib, tglWib, jamWib } from './format';
 
 export async function laporanStok() {
   const { data, error } = await supabase
@@ -12,11 +13,12 @@ export async function laporanStok() {
 
 export async function transaksiTanggal(tgl) {
   if (!tgl) return [];
+  const { dari, sampai } = rentangUtcWib(tgl);
   const { data, error } = await supabase
     .from('resto_pesanan')
     .select('*')
-    .gte('tanggal', tgl + 'T00:00:00')
-    .lt('tanggal', tgl + 'T23:59:59')
+    .gte('tanggal', dari)
+    .lt('tanggal', sampai)
     .order('tanggal', { ascending: false });
   if (error) throw new Error(error.message);
   return data;
@@ -24,11 +26,13 @@ export async function transaksiTanggal(tgl) {
 
 export async function transaksiRentang(dari, sampai) {
   if (!dari || !sampai) return [];
+  const a = rentangUtcWib(dari);
+  const b = rentangUtcWib(sampai);
   const { data, error } = await supabase
     .from('resto_pesanan')
     .select('*, items:resto_pesanan_item(*)')
-    .gte('tanggal', dari + 'T00:00:00')
-    .lte('tanggal', sampai + 'T23:59:59')
+    .gte('tanggal', a.dari)
+    .lt('tanggal', b.sampai)
     .order('tanggal', { ascending: true });
   if (error) throw new Error(error.message);
   return data;
@@ -36,11 +40,17 @@ export async function transaksiRentang(dari, sampai) {
 
 export async function rekapHarian(dari, sampai) {
   if (!dari || !sampai) return [];
-  const { data, error } = await supabase.from('resto_pesanan').select('tanggal, total, metode').gte('tanggal', dari + 'T00:00:00').lte('tanggal', sampai + 'T23:59:59');
+  const a = rentangUtcWib(dari);
+  const b = rentangUtcWib(sampai);
+  const { data, error } = await supabase
+    .from('resto_pesanan')
+    .select('tanggal, total, metode')
+    .gte('tanggal', a.dari)
+    .lt('tanggal', b.sampai);
   if (error) throw new Error(error.message);
   const map = {};
   for (const p of data) {
-    const k = p.tanggal.slice(0, 10);
+    const k = tglWib(p.tanggal);
     if (!map[k]) map[k] = { tanggal: k, jumlah: 0, total: 0, tunai: 0, qris: 0, debit: 0, hutang: 0 };
     const q = map[k];
     q.jumlah += 1;
@@ -171,7 +181,7 @@ export async function laporanHarian(tgl) {
   const res = rekapPendapatan(enriched);
   const perJam = {};
   for (const p of enriched) {
-    const jam = p.tanggal ? new Date(p.tanggal).getHours() : 0;
+    const jam = jamWib(p.tanggal);
     const jamKey = String(jam).padStart(2, '0');
     if (!perJam[jamKey]) perJam[jamKey] = { jam: jamKey, jumlah: 0, total: 0, totalTanpaPajak: 0, totalPajak3: 0 };
     const q = perJam[jamKey];
@@ -216,17 +226,19 @@ export function periodKey(ts, mode) {
 
 export async function mutasiStokBahan(dari, sampai) {
   if (!dari || !sampai) return { masuk: [], keluar: [] };
+  const a = rentangUtcWib(dari);
+  const b = rentangUtcWib(sampai);
   const [m, k] = await Promise.all([
     supabase
       .from('resto_barang_masuk')
       .select('bahan_id, qty, tanggal, resto_produk(nama)')
-      .gte('tanggal', dari + 'T00:00:00')
-      .lte('tanggal', sampai + 'T23:59:59'),
+      .gte('tanggal', a.dari)
+      .lt('tanggal', b.sampai),
     supabase
       .from('resto_barang_keluar')
       .select('bahan_id, qty, tanggal, resto_produk(nama)')
-      .gte('tanggal', dari + 'T00:00:00')
-      .lte('tanggal', sampai + 'T23:59:59')
+      .gte('tanggal', a.dari)
+      .lt('tanggal', b.sampai)
   ]);
   if (m.error) throw new Error(m.error.message);
   if (k.error) throw new Error(k.error.message);
@@ -307,18 +319,20 @@ export async function pemakaianTanggal(tgl) {
 export async function pengeluaranStokHarian(dari, sampai) {
   if (!dari || !sampai) return [];
   let resep = [];
+  const a = rentangUtcWib(dari);
+  const b = rentangUtcWib(sampai);
   const [pesanan, masuk] = await Promise.all([
     transaksiRentang(dari, sampai),
     supabase
       .from('resto_barang_masuk')
       .select('bahan_id, qty, tanggal')
-      .gte('tanggal', dari + 'T00:00:00')
-      .lte('tanggal', sampai + 'T23:59:59')
+      .gte('tanggal', a.dari)
+      .lt('tanggal', b.sampai)
   ]);
   if (masuk.error) throw new Error(masuk.error.message);
 
   const items = pesanan.flatMap((p) =>
-    (p.items || []).map((it) => ({ ...it, hari: (p.tanggal || '').slice(0, 10), q: Number(it.qty) || 1 }))
+    (p.items || []).map((it) => ({ ...it, hari: tglWib(p.tanggal), q: Number(it.qty) || 1 }))
   );
   const menuIds = [...new Set(items.map((i) => i.produk_id).filter(Boolean))];
   if (menuIds.length) {
@@ -342,7 +356,7 @@ export async function pengeluaranStokHarian(dari, sampai) {
 
   const masukPer = {};
   for (const m of masuk.data || []) {
-    const hari = (m.tanggal || '').slice(0, 10);
+    const hari = tglWib(m.tanggal);
     if (!masukPer[hari]) masukPer[hari] = {};
     masukPer[hari][m.bahan_id] = (masukPer[hari][m.bahan_id] || 0) + (Number(m.qty) || 0);
   }
