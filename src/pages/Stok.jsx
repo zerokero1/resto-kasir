@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ambilBahan, barangMasuk, barangKeluar, opname, mutasiBahan } from '../lib/stokService';
-import { fmtTgl } from '../lib/format';
+import { fmtTgl, todayStr } from '../lib/format';
 
 const TAB = ['masuk', 'keluar', 'opname'];
 
@@ -11,6 +11,7 @@ export default function Stok({ user }) {
   const [tab, setTab] = useState('masuk');
   const [nilai, setNilai] = useState('');
   const [alasan, setAlasan] = useState('');
+  const [tgl, setTgl] = useState(todayStr());
   const [mutasi, setMutasi] = useState(null);
   const [err, setErr] = useState('');
   const [ok, setOk] = useState('');
@@ -33,9 +34,10 @@ export default function Stok({ user }) {
     setErr(''); setOk(''); setBusy(true);
     try {
       const qty = Number(nilai);
-      if (tab === 'masuk') await barangMasuk(sel.id, qty, alasan, user.id);
-      if (tab === 'keluar') await barangKeluar(sel.id, qty, alasan, user.id);
-      if (tab === 'opname') await opname(sel.id, qty, user.id);
+      if (!(qty > 0) && tab !== 'opname') throw new Error('Jumlah harus lebih dari 0.');
+      if (tab === 'masuk') await barangMasuk(sel.id, qty, alasan, user.id, tgl);
+      if (tab === 'keluar') await barangKeluar(sel.id, qty, alasan, user.id, tgl);
+      if (tab === 'opname') await opname(sel.id, qty, user.id, tgl);
       setOk('Tersimpan.');
       setNilai(''); setAlasan('');
       await muat();
@@ -76,6 +78,8 @@ export default function Stok({ user }) {
                 <button key={t} className={'chip' + (tab === t ? ' on' : '')} onClick={() => setTab(t)}>{t}</button>
               ))}
             </div>
+            <label className="lbl">Tanggal</label>
+            <input className="input" type="date" max={todayStr()} value={tgl} onChange={(e) => setTgl(e.target.value)} />
             <label className="lbl">{tab === 'opname' ? 'Stok fisik (hitung)' : tab === 'masuk' ? 'Jumlah masuk' : 'Jumlah keluar'}</label>
             <input className="input" type="number" inputMode="decimal" value={nilai} onChange={(e) => setNilai(e.target.value)} />
             <label className="lbl">{tab === 'masuk' ? 'Catatan' : tab === 'keluar' ? 'Alasan/pemakaian' : 'Catatan (opsional)'}</label>

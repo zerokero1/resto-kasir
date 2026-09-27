@@ -1,4 +1,12 @@
 import { supabase } from './supabase';
+import { tglWib } from './format';
+
+// Kolom tanggal di tabel stok bertipe timestamptz, jadi tanggal lokal harus
+// dikonversi ke UTC agar isi hari itu (WIB) tidak bergeser ke hari sebelumnya.
+function keUtc(tgl) {
+  if (!tgl) return new Date().toISOString();
+  return new Date(tgl + 'T00:00:00+07:00').toISOString();
+}
 
 export async function ambilBahan() {
   const { data, error } = await supabase
@@ -10,8 +18,11 @@ export async function ambilBahan() {
   return data;
 }
 
-export async function barangMasuk(bahanId, qty, catatan, userId) {
-  const { error: e1 } = await supabase.from('resto_barang_masuk').insert({ bahan_id: bahanId, qty, catatan, user_id: userId });
+export async function barangMasuk(bahanId, qty, catatan, userId, tanggal) {
+  if (tanggal && tglWib(new Date().toISOString()) < tanggal) {
+    throw new Error('Tanggal barang masuk tidak boleh di masa depan.');
+  }
+  const { error: e1 } = await supabase.from('resto_barang_masuk').insert({ bahan_id: bahanId, qty, catatan, user_id: userId, tanggal: keUtc(tanggal) });
   if (e1) throw new Error(e1.message);
   const { data: b } = await supabase.from('resto_produk').select('stok').eq('id', bahanId).single();
   const baru = (Number(b?.stok) || 0) + Number(qty);
@@ -19,18 +30,24 @@ export async function barangMasuk(bahanId, qty, catatan, userId) {
   if (e2) throw new Error(e2.message);
 }
 
-export async function barangKeluar(bahanId, qty, alasan, userId) {
+export async function barangKeluar(bahanId, qty, alasan, userId, tanggal) {
+  if (tanggal && tglWib(new Date().toISOString()) < tanggal) {
+    throw new Error('Tanggal barang keluar tidak boleh di masa depan.');
+  }
   const { data: b } = await supabase.from('resto_produk').select('stok').eq('id', bahanId).single();
   const stok = Number(b?.stok) || 0;
   if (qty > stok) throw new Error('Stok tidak cukup');
-  const { error: e1 } = await supabase.from('resto_barang_keluar').insert({ bahan_id: bahanId, qty, alasan, user_id: userId });
+  const { error: e1 } = await supabase.from('resto_barang_keluar').insert({ bahan_id: bahanId, qty, alasan, user_id: userId, tanggal: keUtc(tanggal) });
   if (e1) throw new Error(e1.message);
   const { error: e2 } = await supabase.from('resto_produk').update({ stok: stok - qty }).eq('id', bahanId);
   if (e2) throw new Error(e2.message);
 }
 
-export async function opname(bahanId, stokFisik, userId) {
-  const { error: e1 } = await supabase.from('resto_opname').insert({ bahan_id: bahanId, stok_fisik: stokFisik, user_id: userId });
+export async function opname(bahanId, stokFisik, userId, tanggal) {
+  if (tanggal && tglWib(new Date().toISOString()) < tanggal) {
+    throw new Error('Tanggal opname tidak boleh di masa depan.');
+  }
+  const { error: e1 } = await supabase.from('resto_opname').insert({ bahan_id: bahanId, stok_fisik: stokFisik, user_id: userId, tanggal: keUtc(tanggal) });
   if (e1) throw new Error(e1.message);
   const { error: e2 } = await supabase.from('resto_produk').update({ stok: stokFisik }).eq('id', bahanId);
   if (e2) throw new Error(e2.message);
