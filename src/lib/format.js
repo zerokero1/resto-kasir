@@ -1,11 +1,11 @@
 // ---- Zona waktu usaha: WIB (UTC+7) ----
 // Kolom `tanggal` di Supabase tersimpan sebagai UTC (new Date().toISOString()),
-// sedangkan kasir thinks in tanggal lokal. Tanpa konversi, nota yang dibuat
+// sedangkan kasir memakai tanggal lokal. Tanpa konversi, nota yang dibuat
 // setelah tengah malam WIB (00:00-06:59) punya tanggal UTC "kemarin" sehingga
 // hilang dari laporan hari itu dan masuk ke laporan sehari sebelumnya.
 export const OFFSET_WIB_MS = 7 * 60 * 60 * 1000;
 
-// Geser timestamptable UTC agaruggah terbaca sebagai waktu WIB,
+// Geser timestamp UTC agar terbaca sebagai waktu WIB,
 // lalu format dengan timeZone:'UTC' supaya hasilnya sama di semua perangkat.
 const keWib = (ts) => new Date(new Date(ts).getTime() + OFFSET_WIB_MS);
 
@@ -58,18 +58,21 @@ export function rentangUtcWib(tgl) {
   return { dari: awal.toISOString(), sampai: new Date(awal.getTime() + 24 * 60 * 60 * 1000).toISOString() };
 }
 
-// timestamptable UTC -> tanggal 'YYYY-MM-DD' versi WIB
+// timestamp UTC -> tanggal 'YYYY-MM-DD' versi WIB
 export function tglWib(tanggal) {
   if (!tanggal) return '';
   return new Date(new Date(tanggal).getTime() + OFFSET_WIB_MS).toISOString().slice(0, 10);
 }
 
-// timestamptable UTC -> jam (0-23) versi WIB
+// timestamp UTC -> jam (0-23) versi WIB
 export function jamWib(tanggal) {
   if (!tanggal) return 0;
   return new Date(new Date(tanggal).getTime() + OFFSET_WIB_MS).getUTCHours();
 }
 
+/** Tanggal panjang versi WIB, mis. "Sabtu, 27 September 2026". */
 export function hariIni() {
-  return new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  return keWib(new Date().toISOString()).toLocaleDateString('id-ID', {
+    timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  });
 }
