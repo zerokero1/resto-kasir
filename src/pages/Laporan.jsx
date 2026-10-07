@@ -338,7 +338,7 @@ export default function Laporan() {
                       <td>{uang(h.total.cash - h.totalPeng)}</td>
                       <td>{uang(h.total.card)}</td>
                       <td>{uang(Math.round(h.total.card * 0.03))}</td>
-                      <td>{uang(h.total.cash + Math.round(h.total.card * 0.03) - h.totalPeng)}</td>
+                      <td>{uang(h.total.cash + h.total.card + Math.round(h.total.card * 0.03) - h.totalPeng)}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -372,7 +372,7 @@ export default function Laporan() {
           ))}
           <p className="muted small" style={{ marginTop: 10 }}>
             Revenue = subtotal item (sebelum +3% EDC). Sisa Cash = Cash − Pengeluaran. 3% = Card × 0,03.
-            <b> TOTAL = Cash + 3% − Pengeluaran</b> (uang di tangan, sementara).
+            <b> TOTAL = (Cash − Pengeluaran) + Total EDC</b>, dengan Total EDC = Card yang sudah diberi 3% (Card + 3%).
             Isi angka di kolom input untuk memakai pengeluaran manual per departemen (tersimpan di perangkat ini);
             tombol Reset mengembalikan ke otomatis dari catatan pembelian.
           </p>

@@ -313,7 +313,7 @@ export async function exportLaporanKas(data, fileName = 'laporan-kas.xlsx') {
     ws.getCell('J' + r).value = t.cash - totalPeng;
     ws.getCell('L' + r).value = t.card;
     ws.getCell('M' + r).value = edc3;
-    ws.getCell('N' + r).value = t.cash + edc3 - totalPeng;
+    ws.getCell('N' + r).value = t.cash + t.card + edc3 - totalPeng;
     for (const col of numCols) ws.getCell(String.fromCharCode(64 + col) + r).numFmt = '#,##0';
     ws.getRow(r).font = { bold: true };
     borderBaris(ws, r);
