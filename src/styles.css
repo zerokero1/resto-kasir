@@ -206,6 +206,10 @@ body {
 .kas-tbl th { font-weight: 700; background: #f0f4f2; }
 .kas-tbl td:first-child, .kas-tbl th:first-child { text-align: left; }
 .kas-tbl .kas-tot td { font-weight: 700; background: #eef6f3; }
+.kas-manual { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 2px 0 4px; }
+.kas-manual > .muted { width: 100%; }
+.kas-in { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.kas-in input { width: 110px; padding: 5px 8px; }
 
 /* ---------- dashboard ---------- */
 .dash-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin: 10px 0; }

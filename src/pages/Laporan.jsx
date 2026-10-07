@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { laporanStok, rekapHarian, transaksiTanggal, absensiRentang, transaksiRentang, mutasiStokBahan, agregasiMutasi, pemakaianTanggal, pengeluaranStokHarian, pendapatanPerBagian, laporanKas } from '../lib/laporanService';
+import { laporanStok, rekapHarian, transaksiTanggal, absensiRentang, transaksiRentang, mutasiStokBahan, agregasiMutasi, pemakaianTanggal, pengeluaranStokHarian, pendapatanPerBagian, laporanKas, bacaPengeluaranManual, simpanPengeluaranManual, hapusPengeluaranManual } from '../lib/laporanService';
 import { exportLaporanStok, exportRekapHarian, exportTransaksi, exportAbsensi, exportMutasiStok, exportPemakaian, exportPengeluaranStok, exportPendapatanBagian, exportLaporanKas } from '../lib/excelExport';
 import { uang, todayStr, fmtTgl, metodeLabel } from '../lib/format';
 import { useSupabaseQuery } from '../lib/useSupabaseQuery';
@@ -28,7 +28,20 @@ export default function Laporan() {
   const pemQ = useSupabaseQuery(() => pemakaianTanggal(tgl), [tgl]);
   const pengQ = useSupabaseQuery(() => pengeluaranStokHarian(dari, sampai), [dari, sampai]);
   const bagQ = useSupabaseQuery(() => pendapatanPerBagian(dari, sampai), [dari, sampai]);
-  const kasQ = useSupabaseQuery(() => laporanKas(dari, sampai), [dari, sampai]);
+  const [kasVersi, setKasVersi] = useState(0);
+  const kasQ = useSupabaseQuery(() => laporanKas(dari, sampai), [dari, sampai, kasVersi]);
+
+  const kasR = useMemo(() => {
+    const manual = bacaPengeluaranManual();
+    return (kasQ.data || []).map((h) => {
+      const m = manual[h.tanggal];
+      let peng = { Kitchen: h.pengeluaran, Coffee: 0, Bar: 0 };
+      let sumber = 'auto';
+      if (m) { peng = { ...peng, Kitchen: m.Kitchen, Coffee: m.Coffee, Bar: m.Bar }; sumber = 'manual'; }
+      const totalPeng = peng.Kitchen + peng.Coffee + peng.Bar;
+      return { ...h, peng, totalPeng, sumber };
+    });
+  }, [kasQ.data]);
 
   const mutAgg = useMemo(() =>
     agregasiMutasi(mutQ.data || { masuk: [], keluar: [] }, mode),
@@ -286,13 +299,13 @@ export default function Laporan() {
             <span className="k-head">Laporan Kas</span>
             <input className="input" type="date" value={dari} onChange={(e) => setDari(e.target.value)} />
             <input className="input" type="date" value={sampai} onChange={(e) => setSampai(e.target.value)} />
-            <button className="btn" disabled={busy} onClick={() => run('k', () => exportLaporanKas(kasQ.data || [], `laporan-kas-${dari}-${sampai}.xlsx`))}>⬇️ Excel</button>
+            <button className="btn" disabled={busy} onClick={() => run('k', () => exportLaporanKas(kasR, `laporan-kas-${dari}-${sampai}.xlsx`))}>⬇️ Excel</button>
           </div>
           <Memuat q={kasQ} />
-          {kasQ.data?.length === 0 && <p className="muted">Tidak ada data pada rentang ini.</p>}
-          {kasQ.data?.map((h) => (
+          {kasR.length === 0 && <p className="muted">Tidak ada data pada rentang ini.</p>}
+          {kasR.map((h) => (
             <div key={h.tanggal} className="kas-blok">
-              <div className="k-head" style={{ marginTop: h.tanggal === (kasQ.data[0]?.tanggal) ? 0 : 14 }}>{h.tanggal}</div>
+              <div className="k-head" style={{ marginTop: h.tanggal === (kasR[0]?.tanggal) ? 0 : 14 }}>{h.tanggal}</div>
               <div className="kas-scroll">
                 <table className="kas-tbl">
                   <thead>
@@ -303,13 +316,14 @@ export default function Laporan() {
                   <tbody>
                     {['Kitchen', 'Coffee', 'Bar'].map((b) => {
                       const x = h.baris[b];
+                      const peng = h.peng[b];
                       return (
                         <tr key={b}>
                           <td>{b}</td>
                           <td>{uang(x.rev)}</td>
                           <td>{uang(x.cash)}</td>
-                          <td>{b === 'Kitchen' ? uang(h.pengeluaran) : ''}</td>
-                          <td>{b === 'Kitchen' ? uang(x.cash - h.pengeluaran) : ''}</td>
+                          <td>{uang(peng)}</td>
+                          <td>{uang(x.cash - peng)}</td>
                           <td>{uang(x.card)}</td>
                           <td>{uang(Math.round(x.card * 0.03))}</td>
                           <td>{uang(x.rev)}</td>
@@ -320,8 +334,8 @@ export default function Laporan() {
                       <td>TOTAL</td>
                       <td>{uang(h.total.rev)}</td>
                       <td>{uang(h.total.cash)}</td>
-                      <td>{uang(h.pengeluaran)}</td>
-                      <td>{uang(h.total.cash - h.pengeluaran)}</td>
+                      <td>{uang(h.totalPeng)}</td>
+                      <td>{uang(h.total.cash - h.totalPeng)}</td>
                       <td>{uang(h.total.card)}</td>
                       <td>{uang(Math.round(h.total.card * 0.03))}</td>
                       <td>{uang(h.total.rev)}</td>
@@ -329,11 +343,37 @@ export default function Laporan() {
                   </tbody>
                 </table>
               </div>
+              <div className="kas-manual">
+                <span className="muted small">
+                  Pengeluaran {h.sumber === 'manual' ? '✎ manual' : '· otomatis dari catatan pembelian'}
+                </span>
+                {['Kitchen', 'Coffee', 'Bar'].map((d) => (
+                  <label className="kas-in" key={d}>
+                    <span>{d}</span>
+                    <input
+                      className="input"
+                      type="number"
+                      min="0"
+                      step="500"
+                      value={h.peng[d]}
+                      onChange={(e) => {
+                        simpanPengeluaranManual(h.tanggal, d, Number(e.target.value) || 0);
+                        setKasVersi((v) => v + 1);
+                      }}
+                    />
+                  </label>
+                ))}
+                {h.sumber === 'manual' && (
+                  <button className="btn" onClick={() => { hapusPengeluaranManual(h.tanggal); setKasVersi((v) => v + 1); }}>Reset</button>
+                )}
+              </div>
               {h.tanpa > 0 && <p className="muted small">⚠ {uang(h.tanpa)} dari menu tanpa kelompok belum termasuk kategori.</p>}
             </div>
           ))}
           <p className="muted small" style={{ marginTop: 10 }}>
-            Revenue = subtotal item (sebelum +3% EDC). Cash/Card dipisah per pembayaran nota. Pengeluaran = belanja hari itu dari harga di catatan pembelian. Sisa Cash = Cash − Pengeluaran. 3% = Card × 0,03.
+            Revenue = subtotal item (sebelum +3% EDC). Sisa Cash = Cash − Pengeluaran. 3% = Card × 0,03.
+            Isi angka di kolom input untuk memakai pengeluaran manual per departemen (tersimpan di perangkat ini);
+            tombol Reset mengembalikan ke otomatis dari catatan pembelian.
           </p>
         </div>
       )}

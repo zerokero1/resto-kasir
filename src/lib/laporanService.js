@@ -186,6 +186,36 @@ const KELOMPOK_DEPT_LAPORAN = {
 };
 export const DEPT_LAPORAN = ['Kitchen', 'Coffee', 'Bar'];
 
+const KEY_PENGELUARAN_MANUAL = 'pengeluaranKasManual_v1';
+
+/** Baca input manual pengeluaran per hari per departemen (disimpan lokal di perangkat). */
+export function bacaPengeluaranManual() {
+  try {
+    const raw = localStorage.getItem(KEY_PENGELUARAN_MANUAL);
+    const obj = raw ? JSON.parse(raw) : {};
+    for (const t of Object.keys(obj)) {
+      if (!obj[t] || typeof obj[t] !== 'object') obj[t] = {};
+      for (const d of ['Kitchen', 'Coffee', 'Bar']) obj[t][d] = Number(obj[t][d]) || 0;
+    }
+    return obj;
+  } catch { return {}; }
+}
+
+export function simpanPengeluaranManual(tanggal, dept, nominal) {
+  const obj = bacaPengeluaranManual();
+  if (!obj[tanggal]) obj[tanggal] = { Kitchen: 0, Coffee: 0, Bar: 0 };
+  obj[tanggal][dept] = Number(nominal) || 0;
+  localStorage.setItem(KEY_PENGELUARAN_MANUAL, JSON.stringify(obj));
+  return obj;
+}
+
+export function hapusPengeluaranManual(tanggal) {
+  const obj = bacaPengeluaranManual();
+  delete obj[tanggal];
+  localStorage.setItem(KEY_PENGELUARAN_MANUAL, JSON.stringify(obj));
+  return obj;
+}
+
 /**
  * Laporan Kas persis template Excel:
  * baris per tanggal -> Deskripsi (Kitchen/Coffee/Bar) + TOTAL,

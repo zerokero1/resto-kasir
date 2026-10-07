@@ -288,15 +288,14 @@ export async function exportLaporanKas(data, fileName = 'laporan-kas.xlsx') {
   for (const h of data || []) {
     for (const dept of DEPT) {
       const x = h.baris?.[dept] || { rev: 0, cash: 0, card: 0 };
+      const peng = h.peng?.[dept];
       ws.getCell('A' + r).value = new Date(h.tanggal + 'T12:00:00');
       ws.getCell('A' + r).numFmt = 'dd-mm-yy';
       ws.getCell('B' + r).value = dept;
       ws.getCell('D' + r).value = x.rev;
       ws.getCell('F' + r).value = x.cash;
-      if (dept === 'Kitchen') {
-        ws.getCell('H' + r).value = h.pengeluaran;
-        ws.getCell('J' + r).value = x.cash - h.pengeluaran;
-      }
+      ws.getCell('H' + r).value = peng ?? (dept === 'Kitchen' ? h.pengeluaran : 0);
+      ws.getCell('J' + r).value = x.cash - (peng ?? (dept === 'Kitchen' ? h.pengeluaran : 0));
       ws.getCell('L' + r).value = x.card;
       ws.getCell('M' + r).value = Math.round(x.card * 0.03);
       ws.getCell('N' + r).value = x.rev;
@@ -305,11 +304,12 @@ export async function exportLaporanKas(data, fileName = 'laporan-kas.xlsx') {
       r += 1;
     }
     const t = h.total || { rev: 0, cash: 0, card: 0 };
+    const totalPeng = h.totalPeng ?? h.pengeluaran ?? 0;
     ws.getCell('B' + r).value = 'TOTAL';
     ws.getCell('D' + r).value = t.rev;
     ws.getCell('F' + r).value = t.cash;
-    ws.getCell('H' + r).value = h.pengeluaran || 0;
-    ws.getCell('J' + r).value = t.cash - (h.pengeluaran || 0);
+    ws.getCell('H' + r).value = totalPeng;
+    ws.getCell('J' + r).value = t.cash - totalPeng;
     ws.getCell('L' + r).value = t.card;
     ws.getCell('M' + r).value = Math.round(t.card * 0.03);
     ws.getCell('N' + r).value = t.rev;
