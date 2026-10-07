@@ -240,6 +240,22 @@ export async function laporanKas(dari, sampai) {
   if (msk.error) throw new Error(msk.error.message);
   if (prod.error) throw new Error(prod.error.message);
 
+  // Pengeluaran dari tabel resto_pengeluaran (bila sudah dibuat & diisi).
+  let pengDb = [];
+  try {
+    const r = await supabase.from('resto_pengeluaran').select('tanggal, nominal');
+    if (r.error && /Could not find the table/.test(r.error.message)) pengDb = [];
+    else if (r.error) throw new Error(r.error.message);
+    else pengDb = r.data || [];
+  } catch (e) {
+    if (!/Could not find the table/.test(String(e.message))) throw e;
+  }
+  const pengeluaranDb = {};
+  for (const x of pengDb) {
+    const hari = tglWib(x.tanggal);
+    pengeluaranDb[hari] = (pengeluaranDb[hari] || 0) + (Number(x.nominal) || 0);
+  }
+
   const pmap = {};
   for (const p of prod.data || []) pmap[p.id] = p.kelompok;
 
@@ -259,7 +275,8 @@ export async function laporanKas(dari, sampai) {
         tanggal: hari,
         baris: { Kitchen: kosong(), Coffee: kosong(), Bar: kosong() },
         tanpa: 0,
-        pengeluaran: pengeluaran[hari] || 0
+        pengeluaran: pengeluaran[hari] || 0,
+        pengeluaranDb: pengeluaranDb[hari] || 0
       };
     }
     const d = perHari[hari];

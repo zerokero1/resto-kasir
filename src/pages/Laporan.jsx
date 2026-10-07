@@ -37,7 +37,13 @@ export default function Laporan() {
       const m = manual[h.tanggal];
       let peng = { Kitchen: h.pengeluaran, Coffee: 0, Bar: 0, Operasional: 0 };
       let sumber = 'auto';
-      if (m) { peng = { ...peng, ...m }; sumber = 'manual'; }
+      if (h.pengeluaranDb) {
+        peng = { Kitchen: h.pengeluaranDb, Coffee: 0, Bar: 0, Operasional: 0 };
+        sumber = 'database';
+      } else if (m) {
+        peng = { ...peng, ...m };
+        sumber = 'manual';
+      }
       const totalPeng = Object.values(peng).reduce((s, v) => s + (Number(v) || 0), 0);
       return { ...h, peng, totalPeng, sumber };
     });
@@ -345,26 +351,34 @@ export default function Laporan() {
               </div>
               <div className="kas-manual">
                 <span className="muted small">
-                  Pengeluaran {h.sumber === 'manual' ? '✎ manual' : '· otomatis dari catatan pembelian'}
+                  Pengeluaran {h.sumber === 'database'
+                    ? '· dari database'
+                    : h.sumber === 'manual' ? '✎ manual' : '· otomatis dari catatan pembelian'}
                 </span>
-                {DEPT_PENGELUARAN.map((d) => (
-                  <label className="kas-in" key={d}>
-                    <span>{d}</span>
-                    <input
-                      className="input"
-                      type="number"
-                      min="0"
-                      step="500"
-                      value={h.peng[d]}
-                      onChange={(e) => {
-                        simpanPengeluaranManual(h.tanggal, d, Number(e.target.value) || 0);
-                        setKasVersi((v) => v + 1);
-                      }}
-                    />
-                  </label>
-                ))}
-                {h.sumber === 'manual' && (
-                  <button className="btn" onClick={() => { hapusPengeluaranManual(h.tanggal); setKasVersi((v) => v + 1); }}>Reset</button>
+                {h.sumber === 'database' ? (
+                  <span className="muted small">Total: {uang(h.pengeluaranDb)} — {Object.entries(h.peng).filter(([, v]) => v > 0).map(([d]) => d).join(', ') || '-'}</span>
+                ) : (
+                  <>
+                    {DEPT_PENGELUARAN.map((d) => (
+                      <label className="kas-in" key={d}>
+                        <span>{d}</span>
+                        <input
+                          className="input"
+                          type="number"
+                          min="0"
+                          step="500"
+                          value={h.peng[d]}
+                          onChange={(e) => {
+                            simpanPengeluaranManual(h.tanggal, d, Number(e.target.value) || 0);
+                            setKasVersi((v) => v + 1);
+                          }}
+                        />
+                      </label>
+                    ))}
+                    {h.sumber === 'manual' && (
+                      <button className="btn" onClick={() => { hapusPengeluaranManual(h.tanggal); setKasVersi((v) => v + 1); }}>Reset</button>
+                    )}
+                  </>
                 )}
               </div>
               {h.tanpa > 0 && <p className="muted small">⚠ {uang(h.tanpa)} dari menu tanpa kelompok belum termasuk kategori.</p>}
