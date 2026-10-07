@@ -316,12 +316,12 @@ export default function Laporan() {
                 <table className="kas-tbl">
                   <thead>
                     <tr>
-                      <th>Deskripsi</th><th>Revenue</th><th>Cash</th><th>Pengeluaran</th><th>Sisa Cash</th><th>Card</th><th>3%</th><th>Total</th>
+                      <th>Deskripsi</th><th>Revenue</th><th>Cash</th><th>Pengeluaran</th><th>Sisa Cash</th><th>EDC</th><th>Qris</th><th>3%</th><th>Total</th>
                     </tr>
                   </thead>
                   <tbody>
                     {DEPT_PENGELUARAN.map((b) => {
-                      const x = h.baris[b] || { rev: 0, cash: 0, card: 0 };
+                      const x = h.baris[b] || { rev: 0, cash: 0, edc: 0, qris: 0 };
                       const peng = h.peng[b];
                       return (
                         <tr key={b}>
@@ -330,8 +330,9 @@ export default function Laporan() {
                           <td>{uang(x.cash)}</td>
                           <td>{uang(peng)}</td>
                           <td>{uang(x.cash - peng)}</td>
-                          <td>{uang(x.card)}</td>
-                          <td>{uang(Math.round(x.card * 0.03))}</td>
+                          <td>{uang(x.edc)}</td>
+                          <td>{uang(x.qris)}</td>
+                          <td>{uang(Math.round(x.edc * 0.03))}</td>
                           <td>{uang(x.rev)}</td>
                         </tr>
                       );
@@ -342,9 +343,10 @@ export default function Laporan() {
                       <td>{uang(h.total.cash)}</td>
                       <td>{uang(h.totalPeng)}</td>
                       <td>{uang(h.total.cash - h.totalPeng)}</td>
-                      <td>{uang(h.total.card)}</td>
-                      <td>{uang(Math.round(h.total.card * 0.03))}</td>
-                      <td>{uang(h.total.cash + h.total.card + Math.round(h.total.card * 0.03) - h.totalPeng)}</td>
+                      <td>{uang(h.total.edc)}</td>
+                      <td>{uang(h.total.qris)}</td>
+                      <td>{uang(Math.round(h.total.edc * 0.03))}</td>
+                      <td>{uang(h.total.cash + h.total.edc + h.total.qris + Math.round(h.total.edc * 0.03) - h.totalPeng)}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -385,8 +387,9 @@ export default function Laporan() {
             </div>
           ))}
           <p className="muted small" style={{ marginTop: 10 }}>
-            Revenue = subtotal item (sebelum +3% EDC). Sisa Cash = Cash − Pengeluaran. 3% = Card × 0,03.
-            <b> TOTAL = (Cash − Pengeluaran) + Total EDC</b>, dengan Total EDC = Card yang sudah diberi 3% (Card + 3%).
+            Revenue = subtotal item (sebelum +3% EDC). Sisa Cash = Cash − Pengeluaran. EDC = kartu/debit, Qris terpisah.
+            3% = EDC × 0,03.
+            <b> TOTAL = (Cash − Pengeluaran) + EDC(+3%) + Qris</b>.
             Isi angka di kolom input untuk memakai pengeluaran manual per departemen (tersimpan di perangkat ini);
             tombol Reset mengembalikan ke otomatis dari catatan pembelian.
           </p>

@@ -259,7 +259,7 @@ export async function laporanKas(dari, sampai) {
   const pmap = {};
   for (const p of prod.data || []) pmap[p.id] = p.kelompok;
 
-  const kosong = () => ({ rev: 0, cash: 0, card: 0 });
+  const kosong = () => ({ rev: 0, cash: 0, edc: 0, qris: 0 });
   const perHari = {};
   const pengeluaran = {};
   for (const m of msk.data || []) {
@@ -280,14 +280,15 @@ export async function laporanKas(dari, sampai) {
       };
     }
     const d = perHari[hari];
-    const isCard = p.metode === 'debit' || p.metode === 'qris';
     for (const it of p.items || []) {
       const sub = Number(it.subtotal) || 0;
       const dept = KELOMPOK_DEPT_LAPORAN[pmap[it.produk_id]] || 'TanpaDep';
       if (dept === 'TanpaDep') { d.tanpa += sub; continue; }
       const x = d.baris[dept];
       x.rev += sub;
-      if (isCard) x.card += sub; else x.cash += sub;
+      if (p.metode === 'tunai') x.cash += sub;
+      else if (p.metode === 'debit') x.edc += sub;
+      else if (p.metode === 'qris') x.qris += sub;
     }
   }
 
@@ -296,7 +297,7 @@ export async function laporanKas(dari, sampai) {
     .map((h) => ({
       ...h,
       total: SALE_DEPT.reduce(
-        (t, b) => { t.rev += h.baris[b].rev; t.cash += h.baris[b].cash; t.card += h.baris[b].card; return t; },
+        (t, b) => { t.rev += h.baris[b].rev; t.cash += h.baris[b].cash; t.edc += h.baris[b].edc; t.qris += h.baris[b].qris; return t; },
         kosong()
       )
     }));

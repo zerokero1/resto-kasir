@@ -269,17 +269,17 @@ export async function exportLaporanKas(data, fileName = 'laporan-kas.xlsx') {
   const wb = bukaBuku();
   const ws = wb.addWorksheet('Laporan Resto');
   const DEPT = ['Kitchen', 'Coffee', 'Bar', 'Operasional'];
-  const numCols = [4, 6, 8, 10, 12, 13, 14]; // D,F,H,J,L,M,N
+  const numCols = [4, 6, 8, 10, 12, 13, 14, 15]; // D,F,H,J,L,M,N,O
 
-  const lebar = [11, 12, 4, 12, 4, 12, 4, 12, 4, 12, 4, 10, 8, 12, 4];
+  const lebar = [11, 12, 4, 12, 4, 12, 4, 12, 4, 12, 4, 11, 9, 8, 8, 4];
   for (let i = 0; i < lebar.length; i++) ws.getColumn(i + 1).width = lebar[i];
 
-  const head = { A1: 'TANGGAL', B1: 'DESKRIPSI', D1: 'REVENUE', F1: 'CASH', H1: 'PENGELUARAN', J1: 'SISA CASH', L1: 'CARD', M1: '3%', N1: 'TOTAL' };
+  const head = { A1: 'TANGGAL', B1: 'DESKRIPSI', D1: 'REVENUE', F1: 'CASH', H1: 'PENGELUARAN', J1: 'SISA CASH', L1: 'CARD (EDC)', M1: 'QRIS', N1: '3%', O1: 'TOTAL' };
   for (const [c, v] of Object.entries(head)) {
     ws.getCell(c).value = v;
     ws.getCell(c).font = { bold: true };
   }
-  for (const [a, b] of [['B', 'C'], ['D', 'E'], ['F', 'G'], ['H', 'I'], ['J', 'K'], ['N', 'O']]) {
+  for (const [a, b] of [['B', 'C'], ['D', 'E'], ['F', 'G'], ['H', 'I'], ['J', 'K'], ['O', 'P']]) {
     ws.mergeCells(a + '1:' + b + '1');
   }
   borderBaris(ws, 1);
@@ -287,7 +287,7 @@ export async function exportLaporanKas(data, fileName = 'laporan-kas.xlsx') {
   let r = 2;
   for (const h of data || []) {
     for (const dept of DEPT) {
-      const x = h.baris?.[dept] || { rev: 0, cash: 0, card: 0 };
+      const x = h.baris?.[dept] || { rev: 0, cash: 0, edc: 0, qris: 0 };
       const peng = h.peng?.[dept];
       ws.getCell('A' + r).value = new Date(h.tanggal + 'T12:00:00');
       ws.getCell('A' + r).numFmt = 'dd-mm-yy';
@@ -296,24 +296,26 @@ export async function exportLaporanKas(data, fileName = 'laporan-kas.xlsx') {
       ws.getCell('F' + r).value = x.cash;
       ws.getCell('H' + r).value = peng ?? (dept === 'Kitchen' ? h.pengeluaran : 0);
       ws.getCell('J' + r).value = x.cash - (peng ?? (dept === 'Kitchen' ? h.pengeluaran : 0));
-      ws.getCell('L' + r).value = x.card;
-      ws.getCell('M' + r).value = Math.round(x.card * 0.03);
-      ws.getCell('N' + r).value = x.rev;
+      ws.getCell('L' + r).value = x.edc;
+      ws.getCell('M' + r).value = x.qris;
+      ws.getCell('N' + r).value = Math.round(x.edc * 0.03);
+      ws.getCell('O' + r).value = x.rev;
       for (const col of numCols) ws.getCell(String.fromCharCode(64 + col) + r).numFmt = '#,##0';
       borderBaris(ws, r);
       r += 1;
     }
-    const t = h.total || { rev: 0, cash: 0, card: 0 };
+    const t = h.total || { rev: 0, cash: 0, edc: 0, qris: 0 };
     const totalPeng = h.totalPeng ?? h.pengeluaran ?? 0;
-    const edc3 = Math.round(t.card * 0.03);
+    const edc3 = Math.round(t.edc * 0.03);
     ws.getCell('B' + r).value = 'TOTAL';
     ws.getCell('D' + r).value = t.rev;
     ws.getCell('F' + r).value = t.cash;
     ws.getCell('H' + r).value = totalPeng;
     ws.getCell('J' + r).value = t.cash - totalPeng;
-    ws.getCell('L' + r).value = t.card;
-    ws.getCell('M' + r).value = edc3;
-    ws.getCell('N' + r).value = t.cash + t.card + edc3 - totalPeng;
+    ws.getCell('L' + r).value = t.edc;
+    ws.getCell('M' + r).value = t.qris;
+    ws.getCell('N' + r).value = edc3;
+    ws.getCell('O' + r).value = t.cash + t.edc + t.qris + edc3 - totalPeng;
     for (const col of numCols) ws.getCell(String.fromCharCode(64 + col) + r).numFmt = '#,##0';
     ws.getRow(r).font = { bold: true };
     borderBaris(ws, r);
