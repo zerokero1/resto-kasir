@@ -322,6 +322,31 @@ export async function exportLaporanKas(data, fileName = 'laporan-kas.xlsx') {
     r += 2;
   }
 
+  const g = (data || []).reduce(
+    (s, h) => {
+      s.rev += h.total?.rev || 0;
+      s.cash += h.total?.cash || 0;
+      s.edc += h.total?.edc || 0;
+      s.qris += h.total?.qris || 0;
+      s.peng += h.totalPeng ?? h.pengeluaran ?? 0;
+      return s;
+    },
+    { rev: 0, cash: 0, edc: 0, qris: 0, peng: 0 }
+  );
+  const g3 = Math.round(g.edc * 0.03);
+  ws.getCell('B' + r).value = 'GRAND TOTAL';
+  ws.getCell('D' + r).value = g.rev;
+  ws.getCell('F' + r).value = g.cash;
+  ws.getCell('H' + r).value = g.peng;
+  ws.getCell('J' + r).value = g.cash - g.peng;
+  ws.getCell('L' + r).value = g.edc;
+  ws.getCell('M' + r).value = g.qris;
+  ws.getCell('N' + r).value = g3;
+  ws.getCell('O' + r).value = g.cash + g.edc + g.qris + g3 - g.peng;
+  for (const col of numCols) ws.getCell(String.fromCharCode(64 + col) + r).numFmt = '#,##0';
+  ws.getRow(r).font = { bold: true, size: 12 };
+  borderBaris(ws, r);
+
   const buf = await wb.xlsx.writeBuffer();
   unduh(buf, fileName);
 }

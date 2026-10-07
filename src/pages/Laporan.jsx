@@ -386,6 +386,35 @@ export default function Laporan() {
               {h.tanpa > 0 && <p className="muted small">⚠ {uang(h.tanpa)} dari menu tanpa kelompok belum termasuk kategori.</p>}
             </div>
           ))}
+          {kasR.length > 0 && (() => {
+            const g = kasR.reduce((s, h) => {
+              s.rev += h.total.rev; s.cash += h.total.cash; s.edc += h.total.edc; s.qris += h.total.qris; s.peng += h.totalPeng;
+              return s;
+            }, { rev: 0, cash: 0, edc: 0, qris: 0, peng: 0 });
+            const g3 = Math.round(g.edc * 0.03);
+            return (
+              <div className="kas-blok">
+                <div className="k-head" style={{ marginTop: 18 }}>GRAND TOTAL · {dari} s/d {sampai}</div>
+                <div className="kas-scroll">
+                  <table className="kas-tbl">
+                    <tbody>
+                      <tr className="kas-tot">
+                        <td>TOTAL KESELURUHAN</td>
+                        <td>{uang(g.rev)}</td>
+                        <td>{uang(g.cash)}</td>
+                        <td>{uang(g.peng)}</td>
+                        <td>{uang(g.cash - g.peng)}</td>
+                        <td>{uang(g.edc)}</td>
+                        <td>{uang(g.qris)}</td>
+                        <td>{uang(g3)}</td>
+                        <td>{uang(g.cash + g.edc + g.qris + g3 - g.peng)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
           <p className="muted small" style={{ marginTop: 10 }}>
             Revenue = subtotal item (sebelum +3% EDC). Sisa Cash = Cash − Pengeluaran. EDC = kartu/debit, Qris terpisah.
             3% = EDC × 0,03.
