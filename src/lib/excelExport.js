@@ -263,3 +263,68 @@ export async function exportPengeluaranStok(rows, fileName = 'pengeluaran-stok.x
   const buf = await wb.xlsx.writeBuffer();
   unduh(buf, fileName);
 }
+
+// data: hasil laporanKas() — tabel persis template Excel (per hari + Deskripsi + TOTAL)
+export async function exportLaporanKas(data, fileName = 'laporan-kas.xlsx') {
+  const wb = bukaBuku();
+  const ws = wb.addWorksheet('Laporan Resto');
+  const DEPT = ['Kitchen', 'Coffee', 'Bar'];
+  const numCols = [4, 6, 8, 10, 12, 13, 14]; // D,F,H,J,L,M,N
+
+  const lebar = [11, 12, 4, 12, 4, 12, 4, 12, 4, 12, 4, 10, 8, 12, 4];
+  for (let i = 0; i < lebar.length; i++) ws.getColumn(i + 1).width = lebar[i];
+
+  const head = { A1: 'TANGGAL', B1: 'DESKRIPSI', D1: 'REVENUE', F1: 'CASH', H1: 'PENGELUARAN', J1: 'SISA CASH', L1: 'CARD', M1: '3%', N1: 'TOTAL' };
+  for (const [c, v] of Object.entries(head)) {
+    ws.getCell(c).value = v;
+    ws.getCell(c).font = { bold: true };
+  }
+  for (const [a, b] of [['B', 'C'], ['D', 'E'], ['F', 'G'], ['H', 'I'], ['J', 'K'], ['N', 'O']]) {
+    ws.mergeCells(a + '1:' + b + '1');
+  }
+  borderBaris(ws, 1);
+
+  let r = 2;
+  for (const h of data || []) {
+    for (const dept of DEPT) {
+      const x = h.baris?.[dept] || { rev: 0, cash: 0, card: 0 };
+      ws.getCell('A' + r).value = new Date(h.tanggal + 'T12:00:00');
+      ws.getCell('A' + r).numFmt = 'dd-mm-yy';
+      ws.getCell('B' + r).value = dept;
+      ws.getCell('D' + r).value = x.rev;
+      ws.getCell('F' + r).value = x.cash;
+      if (dept === 'Kitchen') {
+        ws.getCell('H' + r).value = h.pengeluaran;
+        ws.getCell('J' + r).value = x.cash - h.pengeluaran;
+      }
+      ws.getCell('L' + r).value = x.card;
+      ws.getCell('M' + r).value = Math.round(x.card * 0.03);
+      ws.getCell('N' + r).value = x.rev;
+      for (const col of numCols) ws.getCell(String.fromCharCode(64 + col) + r).numFmt = '#,##0';
+      borderBaris(ws, r);
+      r += 1;
+    }
+    const t = h.total || { rev: 0, cash: 0, card: 0 };
+    ws.getCell('B' + r).value = 'TOTAL';
+    ws.getCell('D' + r).value = t.rev;
+    ws.getCell('F' + r).value = t.cash;
+    ws.getCell('H' + r).value = h.pengeluaran || 0;
+    ws.getCell('J' + r).value = t.cash - (h.pengeluaran || 0);
+    ws.getCell('L' + r).value = t.card;
+    ws.getCell('M' + r).value = Math.round(t.card * 0.03);
+    ws.getCell('N' + r).value = t.rev;
+    for (const col of numCols) ws.getCell(String.fromCharCode(64 + col) + r).numFmt = '#,##0';
+    ws.getRow(r).font = { bold: true };
+    borderBaris(ws, r);
+    r += 2;
+  }
+
+  const buf = await wb.xlsx.writeBuffer();
+  unduh(buf, fileName);
+}
+
+function borderBaris(ws, r) {
+  ws.getRow(r).eachCell({ includeEmpty: true }, (c) => {
+    c.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+  });
+}

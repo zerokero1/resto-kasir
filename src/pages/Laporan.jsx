@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react';
-import { laporanStok, rekapHarian, transaksiTanggal, absensiRentang, transaksiRentang, mutasiStokBahan, agregasiMutasi, pemakaianTanggal, pengeluaranStokHarian, pendapatanPerBagian } from '../lib/laporanService';
-import { exportLaporanStok, exportRekapHarian, exportTransaksi, exportAbsensi, exportMutasiStok, exportPemakaian, exportPengeluaranStok, exportPendapatanBagian } from '../lib/excelExport';
-import { uang, todayStr, fmtTgl } from '../lib/format';
+import { laporanStok, rekapHarian, transaksiTanggal, absensiRentang, transaksiRentang, mutasiStokBahan, agregasiMutasi, pemakaianTanggal, pengeluaranStokHarian, pendapatanPerBagian, laporanKas } from '../lib/laporanService';
+import { exportLaporanStok, exportRekapHarian, exportTransaksi, exportAbsensi, exportMutasiStok, exportPemakaian, exportPengeluaranStok, exportPendapatanBagian, exportLaporanKas } from '../lib/excelExport';
+import { uang, todayStr, fmtTgl, metodeLabel } from '../lib/format';
 import { useSupabaseQuery } from '../lib/useSupabaseQuery';
 
-const TABS = ['Stok', 'Rekap Harian', 'Transaksi', 'Absensi', 'Stok Masuk/Keluar', 'Pemakaian Stok', 'Pengeluaran Stok', 'Pendapatan per Bagian'];
+const TABS = ['Stok', 'Rekap Harian', 'Transaksi', 'Absensi', 'Stok Masuk/Keluar', 'Pemakaian Stok', 'Pengeluaran Stok', 'Pendapatan per Bagian', 'Laporan Kas'];
 const MODE_LABEL = { harian: 'Harian', mingguan: 'Mingguan', bulanan: 'Bulanan' };
 
 function Memuat({ q }) {
@@ -28,6 +28,7 @@ export default function Laporan() {
   const pemQ = useSupabaseQuery(() => pemakaianTanggal(tgl), [tgl]);
   const pengQ = useSupabaseQuery(() => pengeluaranStokHarian(dari, sampai), [dari, sampai]);
   const bagQ = useSupabaseQuery(() => pendapatanPerBagian(dari, sampai), [dari, sampai]);
+  const kasQ = useSupabaseQuery(() => laporanKas(dari, sampai), [dari, sampai]);
 
   const mutAgg = useMemo(() =>
     agregasiMutasi(mutQ.data || { masuk: [], keluar: [] }, mode),
@@ -51,6 +52,7 @@ export default function Laporan() {
     : tab === 'Stok Masuk/Keluar' ? mutQ.error
     : tab === 'Pemakaian Stok' ? pemQ.error
     : tab === 'Pendapatan per Bagian' ? bagQ.error
+    : tab === 'Laporan Kas' ? kasQ.error
     : pengQ.error;
 
   return (
@@ -275,6 +277,64 @@ export default function Laporan() {
               </p>
             </>
           )}
+        </div>
+      )}
+
+      {tab === 'Laporan Kas' && (
+        <div className="card">
+          <div className="bar">
+            <span className="k-head">Laporan Kas</span>
+            <input className="input" type="date" value={dari} onChange={(e) => setDari(e.target.value)} />
+            <input className="input" type="date" value={sampai} onChange={(e) => setSampai(e.target.value)} />
+            <button className="btn" disabled={busy} onClick={() => run('k', () => exportLaporanKas(kasQ.data || [], `laporan-kas-${dari}-${sampai}.xlsx`))}>⬇️ Excel</button>
+          </div>
+          <Memuat q={kasQ} />
+          {kasQ.data?.length === 0 && <p className="muted">Tidak ada data pada rentang ini.</p>}
+          {kasQ.data?.map((h) => (
+            <div key={h.tanggal} className="kas-blok">
+              <div className="k-head" style={{ marginTop: h.tanggal === (kasQ.data[0]?.tanggal) ? 0 : 14 }}>{h.tanggal}</div>
+              <div className="kas-scroll">
+                <table className="kas-tbl">
+                  <thead>
+                    <tr>
+                      <th>Deskripsi</th><th>Revenue</th><th>Cash</th><th>Pengeluaran</th><th>Sisa Cash</th><th>Card</th><th>3%</th><th>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {['Kitchen', 'Coffee', 'Bar'].map((b) => {
+                      const x = h.baris[b];
+                      return (
+                        <tr key={b}>
+                          <td>{b}</td>
+                          <td>{uang(x.rev)}</td>
+                          <td>{uang(x.cash)}</td>
+                          <td>{b === 'Kitchen' ? uang(h.pengeluaran) : ''}</td>
+                          <td>{b === 'Kitchen' ? uang(x.cash - h.pengeluaran) : ''}</td>
+                          <td>{uang(x.card)}</td>
+                          <td>{uang(Math.round(x.card * 0.03))}</td>
+                          <td>{uang(x.rev)}</td>
+                        </tr>
+                      );
+                    })}
+                    <tr className="kas-tot">
+                      <td>TOTAL</td>
+                      <td>{uang(h.total.rev)}</td>
+                      <td>{uang(h.total.cash)}</td>
+                      <td>{uang(h.pengeluaran)}</td>
+                      <td>{uang(h.total.cash - h.pengeluaran)}</td>
+                      <td>{uang(h.total.card)}</td>
+                      <td>{uang(Math.round(h.total.card * 0.03))}</td>
+                      <td>{uang(h.total.rev)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              {h.tanpa > 0 && <p className="muted small">⚠ {uang(h.tanpa)} dari menu tanpa kelompok belum termasuk kategori.</p>}
+            </div>
+          ))}
+          <p className="muted small" style={{ marginTop: 10 }}>
+            Revenue = subtotal item (sebelum +3% EDC). Cash/Card dipisah per pembayaran nota. Pengeluaran = belanja hari itu dari harga di catatan pembelian. Sisa Cash = Cash − Pengeluaran. 3% = Card × 0,03.
+          </p>
         </div>
       )}
 

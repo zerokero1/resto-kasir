@@ -174,6 +174,85 @@ export async function pendapatanPerBagian(dari, sampai) {
   return rekapPendapatan(await ambilPesananBerisiItems(dari, sampai));
 }
 
+// Mapping kelompok -> departemen sesuai template laporan kas (Excel Contoh Laporan Resto):
+// Bar hanya berisi Juice/Smoothies/Milkshake/Minuman/Mineral Water,
+// Smoothie Bowl masuk Kitchen, dan kopi/matcha/tea masuk Coffee.
+const KELOMPOK_DEPT_LAPORAN = {
+  'Breakfast & Brunch': 'Kitchen', 'Burger & Sandwich': 'Kitchen', 'Asian & Indonesian': 'Kitchen',
+  'Snack & Appetizer': 'Kitchen', 'Croissant': 'Kitchen', 'Smoothie Bowl': 'Kitchen', 'Extra': 'Kitchen',
+  'Espresso': 'Coffee', 'Milk Coffee': 'Coffee', 'Flavored Latte': 'Coffee', 'Coffee + Chocolate': 'Coffee',
+  'Matcha': 'Coffee', 'Tea': 'Coffee',
+  'Juice': 'Bar', 'Smoothies': 'Bar', 'Milkshake': 'Bar', 'Minuman': 'Bar', 'Mineral Water': 'Bar'
+};
+export const DEPT_LAPORAN = ['Kitchen', 'Coffee', 'Bar'];
+
+/**
+ * Laporan Kas persis template Excel:
+ * baris per tanggal -> Deskripsi (Kitchen/Coffee/Bar) + TOTAL,
+ * dengan Revenue (subtotal item, tanpa +3% EDC), Cash, Card,
+ * Pengeluaran (belanja dari harga di catatan pembelian) & Sisa Cash = Cash − Pengeluaran.
+ */
+export async function laporanKas(dari, sampai) {
+  if (!dari || !sampai) return [];
+  const a = rentangUtcWib(dari);
+  const b = rentangUtcWib(sampai);
+  const [pesanan, msk, prod] = await Promise.all([
+    transaksiRentang(dari, sampai),
+    supabase
+      .from('resto_barang_masuk')
+      .select('tanggal, catatan')
+      .gte('tanggal', a.dari)
+      .lt('tanggal', b.sampai),
+    supabase.from('resto_produk').select('id,kelompok').eq('jenis', 'menu')
+  ]);
+  if (msk.error) throw new Error(msk.error.message);
+  if (prod.error) throw new Error(prod.error.message);
+
+  const pmap = {};
+  for (const p of prod.data || []) pmap[p.id] = p.kelompok;
+
+  const kosong = () => ({ rev: 0, cash: 0, card: 0 });
+  const perHari = {};
+  const pengeluaran = {};
+  for (const m of msk.data || []) {
+    const hari = tglWib(m.tanggal);
+    const h = String(m.catatan || '').match(/Rp([\d.]+)/);
+    pengeluaran[hari] = (pengeluaran[hari] || 0) + (h ? Number(h[1].replace(/\./g, '')) || 0 : 0);
+  }
+
+  for (const p of pesanan) {
+    const hari = tglWib(p.tanggal);
+    if (!perHari[hari]) {
+      perHari[hari] = {
+        tanggal: hari,
+        baris: { Kitchen: kosong(), Coffee: kosong(), Bar: kosong() },
+        tanpa: 0,
+        pengeluaran: pengeluaran[hari] || 0
+      };
+    }
+    const d = perHari[hari];
+    const isCard = p.metode === 'debit' || p.metode === 'qris';
+    for (const it of p.items || []) {
+      const sub = Number(it.subtotal) || 0;
+      const dept = KELOMPOK_DEPT_LAPORAN[pmap[it.produk_id]] || 'TanpaDep';
+      if (dept === 'TanpaDep') { d.tanpa += sub; continue; }
+      const x = d.baris[dept];
+      x.rev += sub;
+      if (isCard) x.card += sub; else x.cash += sub;
+    }
+  }
+
+  return Object.values(perHari)
+    .sort((x, y) => x.tanggal.localeCompare(y.tanggal))
+    .map((h) => ({
+      ...h,
+      total: DEPT_LAPORAN.reduce(
+        (t, b) => { t.rev += h.baris[b].rev; t.cash += h.baris[b].cash; t.card += h.baris[b].card; return t; },
+        kosong()
+      )
+    }));
+}
+
 /** Laporan satu hari: rekap harian + rincian per bagian + daftar transaksi. */
 export async function laporanHarian(tgl) {
   if (!tgl) return { ...rekapPendapatan([]), tanggal: tgl, pesanan: [], perJam: [] };

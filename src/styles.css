@@ -199,6 +199,14 @@ body {
 .p-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--line); font-size: 13px; }
 .p-cell { text-align: right; min-width: 56px; }
 
+/* ---------- laporan kas (template) ---------- */
+.kas-scroll { overflow-x: auto; margin: 4px 0 8px; }
+.kas-tbl { border-collapse: collapse; font-size: 12px; white-space: nowrap; width: 100%; }
+.kas-tbl th, .kas-tbl td { border: 1px solid var(--line); padding: 5px 8px; text-align: right; }
+.kas-tbl th { font-weight: 700; background: #f0f4f2; }
+.kas-tbl td:first-child, .kas-tbl th:first-child { text-align: left; }
+.kas-tbl .kas-tot td { font-weight: 700; background: #eef6f3; }
+
 /* ---------- dashboard ---------- */
 .dash-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin: 10px 0; }
 .dash-card { border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: #fff; }
