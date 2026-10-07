@@ -6,9 +6,14 @@ import { tglWib } from './format';
  * Angka diambil dari NOMOR TERTINGGI yang sudah ada (bukan jumlah baris), lalu
  * dilewati ke nomor berikutnya — jumlah baris bisa mundur saat ada nota dihapus
  * sehingga sering menghasilkan ID yang bentrok.
+ *
+ * tanggalAcuan dipakai saat membagi nota: nomor barunya mengikuti tanggal nota
+ * asal, bukan tanggal hari ini, supaya split nota kemarin tetap tercatat di
+ * laporan kemarin.
  */
-export async function idPesananBaru() {
-  const prefix = 'TRX-' + tglWib(new Date().toISOString()).replace(/-/g, '') + '-';
+export async function idPesananBaru(tanggalAcuan) {
+  const acuan = tanggalAcuan ? new Date(tanggalAcuan) : new Date();
+  const prefix = 'TRX-' + tglWib(acuan.toISOString()).replace(/-/g, '') + '-';
   const { data, error } = await supabase
     .from('resto_pesanan')
     .select('id')
@@ -174,10 +179,18 @@ export async function batalkanPesanan(pesanan) {
 }
 
 /**
- * Split bill per item: setiap pecahan disimpan sebagai nota terpisah.
- * parts[0] adalah nota induk (id asli), parts[1..] jadi nota baru ber-id
- * "<id induk>-S2", "-S3", dst dengan catatan "Split dari <id induk>".
- * Item hanya boleh dibagi per qty; total qty tiap item harus tetap sama.
+ * Membagi satu nota menjadi beberapa nota baru.
+ *
+ * Cara baca kasirnya sederhana: "pesanan itu pecah jadi beberapa transaksi".
+ * Karena itu SETIAP payer — termasuk P1 — disimpan sebagai nota baru dengan
+ * nomor TRX sungguhan (mis. TRX-20260927-006, -007, -008), bukan memakai nota
+ * lama lalu diturunkan jadi "-S2", "-S3". Nomor nota jadi urut dan mudah
+ * dibaca, dan tidak ada lagi nomor turunan yang aneh-aneh saat dicetak.
+ *
+ * Nota asal dihapus setelah semua nota baru berhasil dibuat supaya tidak ada
+ * nota Rp 0 atau nota yatim di laporan. Stok bahan TIDAK disentuh: item-nya
+ * dipindah, bukan dijual dua kali (sudah dipotong saat nota asal dibuat).
+ * Tanggal nota baru mewarisi tanggal nota asal agar laporan harian tetap benar.
  */
 export async function simpanSplitBayar(pesanan, parts) {
   if (!notaBisaDiubah(pesanan)) throw new Error('Nota sudah lunas — tidak bisa di-split.');
@@ -211,95 +224,99 @@ export async function simpanSplitBayar(pesanan, parts) {
   }
 
   const now = new Date().toISOString();
-  const anak = [];
-  try {
-    for (let i = 1; i < parts.length; i++) {
-      const part = parts[i];
-      const idBaru = pesanan.id + '-S' + (i + 1);
-      const { data: row, error: e1 } = await supabase
-        .from('resto_pesanan')
-        .insert({
-          id: idBaru,
-          // mewarisi tanggal induk: split adalah penjualan yang sama, jadi
-          // harus tetap masuk laporan hari yang sama walau dilakukan lewat
-          // tengah malam.
-          tanggal: pesanan.tanggal || now,
-          total: Number(part.total) || 0,
-          bayar: Number(part.bayar) || 0,
-          kembalian: Number(part.kembalian) || 0,
-          metode: part.metode,
-          user_id: pesanan.user_id ?? null,
-          nama_kasir: pesanan.nama_kasir ?? null,
-          catatan: 'Split dari ' + pesanan.id + ' (P' + (i + 1) + ')',
-          lunas: true,
-          tanggal_lunas: now
-        })
-        .select()
-        .single();
-      if (e1) {
-        // ID anak diturunkan dari id induk, jadi tabrakan berarti sisa split
-        // sebelumnya untuk nota ini belum bersih.
-        if (e1.code === '23505') throw new Error('Nota ' + idBaru + ' sudah ada dari percobaan split sebelumnya. Muat ulang halaman lalu coba lagi.');
-        throw new Error(e1.message);
+  const tanggal = pesanan.tanggal || now;
+  let pesanError = '';
+
+  for (let percobaan = 1; percobaan <= 6; percobaan++) {
+    const dibuat = [];
+    try {
+      const idBaru = await idPesananBatch(pesanan, parts.length, tanggal, percobaan === 1);
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        const { data: row, error: e1 } = await supabase
+          .from('resto_pesanan')
+          .insert({
+            id: idBaru[i],
+            tanggal,
+            total: Number(part.total) || 0,
+            bayar: Number(part.bayar) || 0,
+            kembalian: Number(part.kembalian) || 0,
+            metode: part.metode,
+            user_id: pesanan.user_id ?? null,
+            nama_kasir: pesanan.nama_kasir ?? null,
+            catatan: 'Pecah dari ' + pesanan.id + ' — P' + (i + 1) + ' dari ' + parts.length,
+            lunas: true,
+            tanggal_lunas: now
+          })
+          .select()
+          .single();
+        if (e1) {
+          if (e1.code === '23505') throw Object.assign(new Error('23505'), { retry: true });
+          throw new Error(e1.message);
+        }
+        dibuat.push(row);
+
+        const itemRows = part.items.map((x) => {
+          const src = mapAsli[x.id];
+          const qty = Number(x.qty) || 0;
+          return {
+            pesanan_id: idBaru[i],
+            produk_id: src.produk_id,
+            nama: src.nama,
+            harga: src.harga,
+            qty,
+            subtotal: (Number(src.harga) || 0) * qty
+          };
+        });
+        const { error: e2 } = await supabase.from('resto_pesanan_item').insert(itemRows);
+        if (e2) throw new Error(e2.message);
       }
-      anak.push({ row, part });
 
-      const itemRows = part.items.map((x) => {
-        const src = mapAsli[x.id];
-        const qty = Number(x.qty) || 0;
-        return {
-          pesanan_id: idBaru,
-          produk_id: src.produk_id,
-          nama: src.nama,
-          harga: src.harga,
-          qty,
-          subtotal: (Number(src.harga) || 0) * qty
-        };
-      });
-      const { error: e2 } = await supabase.from('resto_pesanan_item').insert(itemRows);
-      if (e2) throw new Error(e2.message);
-    }
+      // Semua nota baru sudah aman. Sekarang rapikan nota asal.
+      const { error: e3 } = await supabase.from('resto_pesanan_item').delete().eq('pesanan_id', pesanan.id);
+      if (e3) throw new Error(e3.message);
+      const { error: e4 } = await supabase.from('resto_pesanan').delete().eq('id', pesanan.id);
+      if (e4) throw new Error(e4.message);
 
-    const induk = parts[0];
-    for (const it of asli) {
-      const found = induk.items.find((x) => x.id === it.id);
-      const qty = found ? Number(found.qty) || 0 : 0;
-      if (qty <= 0) {
-        const { error } = await supabase.from('resto_pesanan_item').delete().eq('id', it.id);
-        if (error) throw new Error(error.message);
-      } else {
-        const { error } = await supabase
-          .from('resto_pesanan_item')
-          .update({ qty, subtotal: (Number(it.harga) || 0) * qty })
-          .eq('id', it.id);
-        if (error) throw new Error(error.message);
+      return dibuat;
+    } catch (err) {
+      for (const row of dibuat) {
+        await supabase.from('resto_pesanan_item').delete().eq('pesanan_id', row.id);
+        await supabase.from('resto_pesanan').delete().eq('id', row.id);
       }
+      if (err.retry) {
+        pesanError = 'Nomor nota dipakai kasir lain';
+        continue;
+      }
+      throw err;
     }
-
-    const { data: indukBaru, error: e3 } = await supabase
-      .from('resto_pesanan')
-      .update({
-        total: Number(induk.total) || 0,
-        bayar: Number(induk.bayar) || 0,
-        kembalian: Number(induk.kembalian) || 0,
-        metode: induk.metode,
-        catatan: parts.length > 2 ? pesanan.catatan || 'Split bill' : pesanan.catatan,
-        lunas: true,
-        tanggal_lunas: now
-      })
-      .eq('id', pesanan.id)
-      .select()
-      .single();
-    if (e3) throw new Error(e3.message);
-
-    return [indukBaru, ...anak.map((a) => a.row)];
-  } catch (err) {
-    for (const a of anak) {
-      await supabase.from('resto_pesanan_item').delete().eq('pesanan_id', a.row.id);
-      await supabase.from('resto_pesanan').delete().eq('id', a.row.id);
-    }
-    throw err;
   }
+  throw new Error('Gagal membuat nomor nota karena dipakai kasir lain. Tekan Simpan sekali lagi. (' + pesanError + ')');
+}
+
+/**
+ * Reserves N consecutive nota numbers on the same date prefix as the source
+ * nota, without touching the database — a duplicate-key error from the insert
+ * is what signals a collision.
+ *
+ * pakaiAcuanId hanya untuk percobaan pertama: nomor diturunkan langsung dari
+ * id nota asal tanpa query. Kalau nomor itu ternyata sudah dipakai kasir lain,
+ * percobaan berikutnya wajib menghitung ulang dari database, karena menghitung
+ * ulang dari id asal yang sama akan menghasilkan nomor yang sama terus-menerus.
+ */
+async function idPesananBatch(pesanan, jumlah, tanggalAcuan, pakaiAcuanId = true) {
+  const pola = pakaiAcuanId ? String(pesanan.id).match(/^(TRX-\d{8}-)(\d{3})$/) : null;
+  if (pola) {
+    const mulai = Number(pola[2]);
+    return Array.from({ length: jumlah }, (_, i) => pola[1] + String(mulai + 1 + i).padStart(3, '0'));
+  }
+  // nota asal bukan format TRX-YYYYMMDD-NNN (mis. id manual) atau ini percobaan
+  // ulang: pindai nomor tertinggi yang benar-benar terpakai, lalu lanjutkan.
+  const acuan = await idPesananBaru(tanggalAcuan);
+  const m = acuan.match(/^(TRX-\d{8}-)(\d{3})$/);
+  if (!m) throw new Error('Format id nota tidak dikenali: ' + pesanan.id);
+  const mulai = Number(m[2]) - 1;
+  return Array.from({ length: jumlah }, (_, i) => m[1] + String(mulai + 1 + i).padStart(3, '0'));
 }
 
 async function kurangiStokBahan(items) {

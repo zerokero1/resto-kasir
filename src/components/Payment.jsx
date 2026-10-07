@@ -23,7 +23,7 @@ function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy, mulaiSplit }) {
   const [itemErr, setItemErr] = useState('');
   const [jumlahPayer, setJumlahPayer] = useState(2);
   const [assign, setAssign] = useState({});
-  const [pecah, setPecah] = useState({});
+  const [step, setStep] = useState(0);
   const [cara, setCara] = useState({});
   const totalMenu = Number(p.total);
   const pakaiPajak = metode === 'debit';
@@ -47,89 +47,77 @@ function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy, mulaiSplit }) {
         const a = {};
         for (const it of rows) a[it.id] = { 0: Number(it.qty) || 0 };
         setAssign(a);
+        setStep(0);
         setJumlahPayer((n) => Math.min(Math.max(n, 2), Math.max(2, rows.length)));
         const c = {};
         for (let i = 0; i < jumlahPayer; i++) c[i] = 'tunai';
         setCara(c);
-        setPecah({});
       })
       .catch((e) => { if (!batal) setItemErr(e.message); });
     return () => { batal = true; };
   }, [split, p.id]);
 
-  function ubahQty(itemId, idx, val) {
-    const sumber = itemsi.find((it) => it.id === itemId);
-    const maks = Number(sumber?.qty) || 0;
-    const diminta = Math.max(0, Math.min(maks, Math.floor(Number(val) || 0)));
-    const dist = { ...(assign[itemId] || {}) };
-    let kurang = diminta - (Number(dist[idx]) || 0);
-    if (kurang > 0) {
-      const lain = Object.keys(dist)
-        .filter((k) => Number(k) !== idx && (Number(dist[k]) || 0) > 0)
-        .sort((a, b) => (Number(dist[b]) || 0) - (Number(dist[a]) || 0));
-      for (const k of lain) {
-        if (kurang <= 0) break;
-        const ambil = Math.min(kurang, Number(dist[k]) || 0);
-        dist[k] = (Number(dist[k]) || 0) - ambil;
-        kurang -= ambil;
-      }
-    }
-    if (kurang > 0) return;
-    dist[idx] = diminta;
-    setAssign((a) => ({ ...a, [itemId]: dist }));
+  // Alokasi item diikat ke payer yang sedang diisi (step). Payer sebelumnya
+  // terkunci supaya tidak bisa diubah diam-diam; untuk memperbaikinya, kasir
+  // menekan "Ubah" pada payer itu lalu dialokasikan ulang.
+  function alokasi(itemId) {
+    return (assign[itemId] || {})[step] || 0;
   }
 
-  function pilihPayer(itemId, idx) {
-    const sumber = itemsi.find((it) => it.id === itemId);
-    const qty = Math.floor(Number(sumber?.qty) || 0);
-    if (!qty) return;
-    setAssign((a) => ({ ...a, [itemId]: { [idx]: qty } }));
+  function sudahDibagi(itemId) {
+    return Object.entries(assign[itemId] || {})
+      .filter(([i, q]) => Number(i) !== step && Number(q) > 0)
+      .map(([i, q]) => 'P' + (Number(i) + 1) + (Number(q) > 1 ? '·' + q : ''));
   }
 
-  function togglePecah(itemId) {
-    setPecah((s) => {
-      if (s[itemId]) {
-        const next = { ...s };
-        delete next[itemId];
-        return next;
-      }
-      const sumber = itemsi.find((it) => it.id === itemId);
-      const qty = Math.floor(Number(sumber?.qty) || 0);
-      const sekarang = assign[itemId] || {};
-      const punya = Object.keys(sekarang).filter((k) => (Number(sekarang[k]) || 0) > 0);
-      if (punya.length === 1 && qty > 1) {
-        const dari = Number(punya[0]);
-        const Elsewhere = (dari + 1) % Math.max(2, jumlahPayer);
-        const ambil = Math.floor(qty / 2);
-        setAssign((a) => ({ ...a, [itemId]: { [dari]: dari - ambil, [ Elsewhere]: ambil } }));
-      }
-      return { ...s, [itemId]: true };
+  function ambilItem(itemId) {
+    const sumber = itemsi.find((it) => it.id === itemId);
+    const total = Math.floor(Number(sumber?.qty) || 0);
+    const terpakai = Object.values(assign[itemId] || {}).reduce((s, v) => s + (Number(v) || 0), 0);
+    const sisa = total - terpakai;
+    if (sisa <= 0) return;
+    setAssign((a) => ({ ...a, [itemId]: { ...(a[itemId] || {}), [step]: (Number(a[itemId]?.[step]) || 0) + sisa } }));
+  }
+
+  function lepasItem(itemId) {
+    setAssign((a) => {
+      const next = { ...(a[itemId] || {}) };
+      delete next[step];
+      return { ...a, [itemId]: next };
     });
   }
 
-  function pindahkanSemua(idx) {
-    const a = {};
-    for (const it of itemsi) a[it.id] = { [idx]: Number(it.qty) || 0 };
-    setAssign(a);
+  function ubahQtyPayer(itemId, val) {
+    const sumber = itemsi.find((it) => it.id === itemId);
+    const total = Math.floor(Number(sumber?.qty) || 0);
+    const terpakaiSendiri = Number(assign[itemId]?.[step]) || 0;
+    const terpakaiLain = Object.entries(assign[itemId] || {})
+      .filter(([i]) => Number(i) !== step)
+      .reduce((s, [, v]) => s + (Number(v) || 0), 0);
+    const maks = total - terpakaiLain;
+    const v = Math.max(0, Math.min(maks, Math.floor(Number(val) || 0)));
+    setAssign((a) => ({ ...a, [itemId]: { ...(a[itemId] || {}), [step]: v } }));
   }
 
-  function splitRata() {
-    const a = {};
-    let giliran = 0;
-    for (const it of itemsi) {
-      const qty = Math.floor(Number(it.qty) || 0);
-      if (qty <= 0) { a[it.id] = { 0: 0 }; continue; }
-      const isi = {};
-      const jumlah = Math.min(jumlahPayer, qty);
-      for (let k = 0; k < jumlah; k++) {
-        const idx = (giliran + k) % jumlahPayer;
-        isi[idx] = (isi[idx] || 0) + 1;
+  function ambilSemuaSisa() {
+    setAssign((a) => {
+      const next = { ...a };
+      for (const it of itemsi) {
+        const total = Math.floor(Number(it.qty) || 0);
+        const terpakai = Object.values(next[it.id] || {}).reduce((s, v) => s + (Number(v) || 0), 0);
+        const sisa = total - terpakai;
+        next[it.id] = { ...(next[it.id] || {}), [step]: (Number(next[it.id]?.[step]) || 0) + Math.max(0, sisa) };
       }
-      if (qty > jumlah) isi[giliran % jumlahPayer] += qty - jumlah;
-      a[it.id] = isi;
-      giliran = (giliran + jumlah) % jumlahPayer;
-    }
-    setAssign(a);
+      return next;
+    });
+  }
+
+  const terkunci = step > 0 || jumlahPayer === 1;
+  const bisaUbahPayerLama = step > 0;
+
+  function kePayer(n) {
+    if (n < 0 || n >= jumlahPayer) return;
+    setStep(n);
   }
 
   const payer = [];
@@ -151,7 +139,19 @@ function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy, mulaiSplit }) {
 
   const totalPajakSplit = payer.reduce((s, x) => s + x.pajak, 0);
   const totalAkhirSplit = payer.reduce((s, x) => s + x.total, 0);
-  const splitSiap = itemsSiap && payer.every((x) => x.items.length > 0) && payer.every((x) => !(x.bayar > 0 && x.bayar < x.total));
+  const semuaTerbagi = itemsi.every((it) => {
+    const jml = Object.values(assign[it.id] || {}).reduce((s, v) => s + (Number(v) || 0), 0);
+    return jml === Math.floor(Number(it.qty) || 0);
+  });
+  const sisaBelumDibagi = itemsi.reduce((s, it) => {
+    const total = Math.floor(Number(it.qty) || 0);
+    const jml = Object.values(assign[it.id] || {}).reduce((a, v) => a + (Number(v) || 0), 0);
+    return s + (total - jml);
+  }, 0);
+  const stepSiap = payer[step] && payer[step].items.length > 0;
+  const kurangBayar = payer.some((x) => x.bayar > 0 && x.bayar < x.total);
+  const terakhir = step === jumlahPayer - 1;
+  const splitSiap = itemsSiap && semuaTerbagi && jumlahPayer > 0 && !kurangBayar;
 
   function kirim(e) {
     e.preventDefault();
@@ -184,7 +184,7 @@ function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy, mulaiSplit }) {
         </div>
         {split && itemsSiap && (
           <div className="total-line" style={{ fontWeight: 700 }}>
-            Mode Split Bill — bagi item ke tiap orang di bawah.
+            Mode Split Bill — tiap orang jadi 1 nota baru.
           </div>
         )}
 
@@ -264,33 +264,54 @@ function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy, mulaiSplit }) {
         {split && (
           <form onSubmit={kirimSplit}>
             <div className="muted small" style={{ marginTop: 8 }}>
-              Bagi item ke tiap orang. Qty tiap item harus tetap seperti nota awal.
+              Tentukan isi pesanan tiap orang. Qty tiap item harus tetap sama seperti nota {p.id}.
             </div>
             {itemErr && <div className="err">{itemErr}</div>}
             {!itemsSiap && !itemErr && <p className="muted">Memuat item…</p>}
             {itemsSiap && (
               <>
                 <div className="f-row" style={{ marginTop: 8 }}>
-                  <span className="k-head" style={{ flex: 1 }}>Jumlah payer</span>
-                  <button className="btn btn-sm" type="button" onClick={() => setJumlahPayer((n) => Math.max(2, n - 1))}>−</button>
+                  <span className="k-head" style={{ flex: 1 }}>Jumlah orang</span>
+                  <button className="btn btn-sm" type="button" disabled={terkunci} onClick={() => setJumlahPayer((n) => Math.max(2, n - 1))}>−</button>
                   <b>{jumlahPayer}</b>
                   <button
                     className="btn btn-sm"
                     type="button"
-                    onClick={() => setJumlahPayer((n) => Math.min(Math.max(2, items.length), n + 1))}
+                    disabled={terkunci || jumlahPayer >= Math.max(2, itemsi.length)}
+                    onClick={() => setJumlahPayer((n) => Math.min(Math.max(2, itemsi.length), n + 1))}
                   >+</button>
                 </div>
-                <div className="f-row" style={{ marginTop: 4 }}>
-                  <button className="btn btn-sm" type="button" onClick={splitRata}>⚡ Split rata</button>
-                  <button className="btn btn-sm" type="button" onClick={() => pindahkanSemua(0)}>Semua ke P1</button>
-                  <button className="btn btn-sm" type="button" onClick={() => pindahkanSemua(1)}>Semua ke P2</button>
+
+                <div className="rule" />
+                <div className="k-head" style={{ marginBottom: 6 }}>
+                  Orang {step + 1} dari {jumlahPayer} — pilih apa yang dia bayar
                 </div>
-                <p className="muted small" style={{ marginTop: 6 }}>
-                  Ketuk P1/P2/… pada tiap item untuk memindahkannya ke orang itu. Kalau qty mau dipecah, tekan ⚖️ Pecah lalu ubah angkanya.
-                </p>
+                <div className="f-row">
+                  {payer.map((x) => {
+                    const aktif = x.i === step;
+                    const jmlItem = x.items.length;
+                    const jmlQty = x.items.reduce((s, y) => s + (Number(y.qty) || 0), 0);
+                    return (
+                      <button
+                        key={x.i}
+                        type="button"
+                        className={'btn btn-sm' + (aktif ? ' btn-primary' : '')}
+                        onClick={() => kePayer(x.i)}
+                      >
+                        P{x.i + 1}{jmlItem > 0 ? ' · ' + jmlQty : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="muted small" style={{ marginTop: 6 }}>
+                  Sisa belum dibagi: <b>{sisaBelumDibagi}</b> item. Tekan "Ambil" untuk masukkan item ke P{step + 1}.
+                </div>
 
                 {itemsi.map((it) => {
-                  const punya = Object.entries(assign[it.id] || {}).filter(([, q]) => Number(q) > 0);
+                  const punyaSaya = alokasi(it.id);
+                  const punyaLain = sudahDibagi(it.id);
+                  const habis = punyaSaya <= 0 && punyaLain.length > 0;
                   return (
                     <div className="mut-detail" key={it.id} style={{ marginTop: 6 }}>
                       <div className="p-row">
@@ -298,117 +319,116 @@ function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy, mulaiSplit }) {
                         <span className="p-cell">{it.qty} x {uang(it.harga)} = {uang(it.subtotal)}</span>
                       </div>
                       <div className="f-row" style={{ marginTop: 4 }}>
-                        {Array.from({ length: jumlahPayer }, (_, i) => {
-                          const punyaP = Number(assign[it.id]?.[i]) || 0;
-                          return (
-                            <button
-                              key={i}
-                              type="button"
-                              className={'btn btn-sm' + (punyaP > 0 ? ' btn-primary' : '')}
-                              onClick={() => pilihPayer(it.id, i)}
-                            >
-                              P{i + 1}{punyaP > 0 ? ' · ' + punyaP : ''}
-                            </button>
-                          );
-                        })}
-                        {Math.floor(Number(it.qty) || 0) > 1 && (
+                        {punyaSaya > 0 ? (
+                          <>
+                            <span className="muted small">P{step + 1} bayar {punyaSaya}</span>
+                            <button className="btn btn-sm" type="button" onClick={() => lepasItem(it.id)}>Lepas</button>
+                          </>
+                        ) : (
                           <button
-                            className={'btn btn-sm' + (pecah[it.id] ? ' btn-primary' : '')}
+                            className="btn btn-sm"
                             type="button"
-                            onClick={() => togglePecah(it.id)}
+                            disabled={habis || semuaTerbagi}
+                            onClick={() => ambilItem(it.id)}
                           >
-                            ⚖️ Pecah
+                            {habis ? 'Sudah di P' + punyaLain.join('+P').replace('P', '') : '✓ Ambil'}
                           </button>
                         )}
+                        {Math.floor(Number(it.qty) || 0) > 1 && punyaSaya > 0 && (
+                          <label className="lbl" style={{ flex: 1, margin: 0, maxWidth: 90 }}>
+                            qty
+                            <input
+                              className="input"
+                              type="number"
+                              inputMode="numeric"
+                              min="0"
+                              max={it.qty}
+                              value={punyaSaya}
+                              onChange={(e) => ubahQtyPayer(it.id, e.target.value)}
+                            />
+                          </label>
+                        )}
                       </div>
-                      {(pecah[it.id] || punya.length > 1) && (
-                        <div className="f-row" style={{ marginTop: 4 }}>
-                          {Array.from({ length: jumlahPayer }, (_, i) => (
-                            <label key={i} className="lbl" style={{ flex: 1, margin: 0 }}>
-                              P{i + 1}
-                              <input
-                                className="input"
-                                type="number"
-                                inputMode="numeric"
-                                min="0"
-                                max={it.qty}
-                                value={assign[it.id]?.[i] ?? 0}
-                                onChange={(e) => ubahQty(it.id, i, e.target.value)}
-                              />
-                            </label>
-                          ))}
-                        </div>
-                      )}
+                      {punyaLain.length > 0 && <div className="muted small">Sudah diambil P{punyaLain.join(' & P')}</div>}
                     </div>
                   );
                 })}
 
-                <div className="rule" />
-                {payer.map((x) => (
-                  <div className="mut-detail" key={x.i} style={{ marginBottom: 8 }}>
-                    <div className="p-row">
-                      <b>P{x.i + 1}</b>
-                      <span className="p-cell">{uang(x.subtotal)}{x.pajak ? ' + tax ' + uang(x.pajak) : ''} = <b>{uang(x.total)}</b></span>
-                    </div>
-                    <div className="f-row" style={{ marginTop: 4 }}>
-                      {METODE_PILIHAN.map((m) => (
-                        <button
-                          key={m}
-                          type="button"
-                          className={'btn btn-sm' + (x.metode === m ? ' btn-primary' : '')}
-                          onClick={() => setCara((c) => ({ ...c, [x.i]: m }))}
-                        >
-                          {m === 'tunai' ? 'Tunai' : m === 'debit' ? 'EDC' : 'QRIS'}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="f-row" style={{ marginTop: 4 }}>
-                      <input
-                        className="input"
-                        type="number"
-                        inputMode="numeric"
-                        placeholder={x.metode === 'tunai' ? 'Uang tunai' : 'Nominal mesin'}
-                        value={cara['b' + x.i] ?? ''}
-                        onChange={(e) => setCara((c) => ({ ...c, ['b' + x.i]: e.target.value }))}
-                      />
-                      <button
-                        className="btn btn-sm"
-                        type="button"
-                        onClick={() => setCara((c) => ({ ...c, ['b' + x.i]: String(x.total) }))}
-                      >Bayar Pas</button>
-                    </div>
-                    {x.items.length === 0 && <div className="muted small">P{x.i + 1} belum dapat item.</div>}
-                    {x.bayar > 0 && x.bayar < x.total && (
-                      <div className="err">P{x.i + 1} kurang {uang(x.total - x.bayar)}.</div>
-                    )}
-                  </div>
-                ))}
+                <div className="f-row" style={{ marginTop: 8 }}>
+                  <button className="btn btn-sm" type="button" onClick={ambilSemuaSisa}>Ambil semua sisa untuk P{step + 1}</button>
+                </div>
 
-                <div className="total-line">Total tanpa 3%: <b>{uang(totalMenu)}</b></div>
-                <div className="total-line">Total tax 3%: <b>{uang(totalPajakSplit)}</b></div>
-                <div className="total-line" style={{ fontSize: 17 }}>Total semua payer: <b>{uang(totalAkhirSplit)}</b></div>
+                <div className="rule" />
+                <div className="p-row">
+                  <b>Bayar P{step + 1}</b>
+                  <span className="p-cell">{uang(payer[step]?.subtotal)}{payer[step]?.pajak ? ' + tax ' + uang(payer[step].pajak) : ''} = <b>{uang(payer[step]?.total || 0)}</b></span>
+                </div>
+                <div className="f-row" style={{ marginTop: 4 }}>
+                  {METODE_PILIHAN.map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      className={'btn btn-sm' + ((cara[step] || 'tunai') === m ? ' btn-primary' : '')}
+                      onClick={() => setCara((c) => ({ ...c, [step]: m }))}
+                    >
+                      {m === 'tunai' ? 'Tunai' : m === 'debit' ? 'EDC' : 'QRIS'}
+                    </button>
+                  ))}
+                </div>
+                <div className="f-row" style={{ marginTop: 4 }}>
+                  <input
+                    className="input"
+                    type="number"
+                    inputMode="numeric"
+                    placeholder={(cara[step] || 'tunai') === 'tunai' ? 'Uang tunai' : 'Nominal mesin'}
+                    value={cara['b' + step] ?? ''}
+                    onChange={(e) => setCara((c) => ({ ...c, ['b' + step]: e.target.value }))}
+                  />
+                  <button
+                    className="btn btn-sm"
+                    type="button"
+                    onClick={() => setCara((c) => ({ ...c, ['b' + step]: String(payer[step]?.total || 0) }))}
+                  >Bayar Pas</button>
+                </div>
+                {payer[step]?.bayar > 0 && payer[step].bayar < payer[step].total && (
+                  <div className="err">P{step + 1} kurang {uang(payer[step].total - payer[step].bayar)}.</div>
+                )}
+
+                <div className="total-line">Total semua orang: <b>{uang(totalAkhirSplit)}</b></div>
                 {totalAkhirSplit !== totalMenu + totalPajakSplit && (
                   <div className="err">
-                    Total payer ({uang(totalAkhirSplit)}) tidak sama dengan nota + tax ({uang(totalMenu + totalPajakSplit)}).
+                    Total yang dibagi ({uang(totalAkhirSplit)}) tidak sama dengan nota + tax ({uang(totalMenu + totalPajakSplit)}).
                   </div>
+                )}
+                {!semuaTerbagi && (
+                  <div className="muted small">Masih ada {sisaBelumDibagi} item yang belum masuk payer mana pun.</div>
                 )}
 
                 <div className="rule" />
                 <div className="f-row end">
                   <button className="btn" type="button" onClick={onClose} disabled={busy}>Batal</button>
-                  <button className="btn btn-primary" type="submit" disabled={busy || !splitSiap}>
-                    {busy ? 'Memproses…' : 'Bayar & Lunas' + (jumlahPayer > 1 ? ' ' + jumlahPayer + ' orang' : '')}
+                  {!terakhir && (
+                    <button className="btn" type="button" disabled={busy || !stepSiap} onClick={() => kePayer(step + 1)}>
+                      Lanjut ke P{step + 2} →
+                    </button>
+                  )}
+                  <button className="btn btn-primary" type="submit" disabled={busy || !splitSiap || !terakhir}>
+                    {busy ? 'Memproses…' : 'Simpan jadi ' + jumlahPayer + ' nota baru'}
                   </button>
                 </div>
-                {!splitSiap && itemsSiap && !busy && (
+                {itemsSiap && !busy && !terakhir && !stepSiap && (
+                  <div className="err">P{step + 1} belum dapat item. Tekan "Ambil" pada minimal satu item.</div>
+                )}
+                {itemsSiap && !busy && terakhir && !splitSiap && (
                   <div className="err">
-                    {payer.some((x) => x.items.length === 0)
-                      ? 'Masih ada payer tanpa item: ' + payer.filter((x) => x.items.length === 0).map((x) => 'P' + (x.i + 1)).join(', ') + '. Ketuk tombol P pada item, atau pakai "Split rata".'
-                      : 'Ada nominal payer yang kurang dari totalnya.'}
+                    {!semuaTerbagi
+                      ? 'Masih ada ' + sisaBelumDibagi + ' item belum dibagi — kembali ke P1 untuk membagikannya.'
+                      : kurangBayar ? 'Ada nominal yang kurang dari totalnya.' : ''}
                   </div>
                 )}
                 <p className="muted small" style={{ marginTop: 8 }}>
-                  Tiap payer disimpan jadi nota terpisah (P1 = {p.id}, P2 = {p.id}-S2, dst) supaya total revenue &amp; pajak tetap akurat.
+                  Nota {p.id} akan diganti {jumlahPayer} nota bernomor baru ({jumlahPayer} orang), lalu dicetak satu per satu dari daftar
+                  nota. Stok bahan tidak dipotong dua kali.
                 </p>
               </>
             )}
