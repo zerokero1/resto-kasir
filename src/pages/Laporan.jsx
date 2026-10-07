@@ -388,16 +388,45 @@ export default function Laporan() {
           ))}
           {kasR.length > 0 && (() => {
             const g = kasR.reduce((s, h) => {
+              for (const b of DEPT_PENGELUARAN) {
+                const x = h.baris[b] || { rev: 0, cash: 0, edc: 0, qris: 0 };
+                s.baris[b].rev += x.rev; s.baris[b].cash += x.cash; s.baris[b].edc += x.edc; s.baris[b].qris += x.qris;
+                s.baris[b].peng += h.peng[b] || 0;
+              }
               s.rev += h.total.rev; s.cash += h.total.cash; s.edc += h.total.edc; s.qris += h.total.qris; s.peng += h.totalPeng;
               return s;
-            }, { rev: 0, cash: 0, edc: 0, qris: 0, peng: 0 });
+            }, {
+              rev: 0, cash: 0, edc: 0, qris: 0, peng: 0,
+              baris: Object.fromEntries(DEPT_PENGELUARAN.map((b) => [b, { rev: 0, cash: 0, edc: 0, qris: 0, peng: 0 }]))
+            });
             const g3 = Math.round(g.edc * 0.03);
+            const rowTot = (x) => [
+              uang(x.peng),
+              uang(x.cash - x.peng),
+              uang(x.edc),
+              uang(x.qris),
+              uang(Math.round(x.edc * 0.03)),
+              uang(x.cash + x.edc + x.qris + Math.round(x.edc * 0.03) - x.peng)
+            ];
             return (
               <div className="kas-blok">
                 <div className="k-head" style={{ marginTop: 18 }}>GRAND TOTAL · {dari} s/d {sampai}</div>
                 <div className="kas-scroll">
                   <table className="kas-tbl">
+                    <thead>
+                      <tr>
+                        <th>Deskripsi</th><th>Revenue</th><th>Cash</th><th>Pengeluaran</th><th>Sisa Cash</th><th>EDC</th><th>Qris</th><th>3%</th><th>Total</th>
+                      </tr>
+                    </thead>
                     <tbody>
+                      {DEPT_PENGELUARAN.map((b) => (
+                        <tr key={b}>
+                          <td>{b}</td>
+                          <td>{uang(g.baris[b].rev)}</td>
+                          <td>{uang(g.baris[b].cash)}</td>
+                          {rowTot(g.baris[b]).map((v, i) => <td key={i}>{v}</td>)}
+                        </tr>
+                      ))}
                       <tr className="kas-tot">
                         <td>TOTAL KESELURUHAN</td>
                         <td>{uang(g.rev)}</td>

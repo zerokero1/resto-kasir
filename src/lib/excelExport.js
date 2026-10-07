@@ -324,6 +324,14 @@ export async function exportLaporanKas(data, fileName = 'laporan-kas.xlsx') {
 
   const g = (data || []).reduce(
     (s, h) => {
+      for (const dept of DEPT) {
+        const x = h.baris?.[dept] || { rev: 0, cash: 0, edc: 0, qris: 0 };
+        s.baris[dept].rev += x.rev;
+        s.baris[dept].cash += x.cash;
+        s.baris[dept].edc += x.edc;
+        s.baris[dept].qris += x.qris;
+        s.baris[dept].peng += h.peng?.[dept] ?? (dept === 'Kitchen' ? h.pengeluaran : 0) ?? 0;
+      }
       s.rev += h.total?.rev || 0;
       s.cash += h.total?.cash || 0;
       s.edc += h.total?.edc || 0;
@@ -331,9 +339,27 @@ export async function exportLaporanKas(data, fileName = 'laporan-kas.xlsx') {
       s.peng += h.totalPeng ?? h.pengeluaran ?? 0;
       return s;
     },
-    { rev: 0, cash: 0, edc: 0, qris: 0, peng: 0 }
+    {
+      rev: 0, cash: 0, edc: 0, qris: 0, peng: 0,
+      baris: Object.fromEntries(DEPT.map((b) => [b, { rev: 0, cash: 0, edc: 0, qris: 0, peng: 0 }]))
+    }
   );
   const g3 = Math.round(g.edc * 0.03);
+  for (const dept of DEPT) {
+    const x = g.baris[dept];
+    ws.getCell('B' + r).value = dept;
+    ws.getCell('D' + r).value = x.rev;
+    ws.getCell('F' + r).value = x.cash;
+    ws.getCell('H' + r).value = x.peng;
+    ws.getCell('J' + r).value = x.cash - x.peng;
+    ws.getCell('L' + r).value = x.edc;
+    ws.getCell('M' + r).value = x.qris;
+    ws.getCell('N' + r).value = Math.round(x.edc * 0.03);
+    ws.getCell('O' + r).value = x.rev;
+    for (const col of numCols) ws.getCell(String.fromCharCode(64 + col) + r).numFmt = '#,##0';
+    borderBaris(ws, r);
+    r += 1;
+  }
   ws.getCell('B' + r).value = 'GRAND TOTAL';
   ws.getCell('D' + r).value = g.rev;
   ws.getCell('F' + r).value = g.cash;
