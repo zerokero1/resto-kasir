@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { laporanStok, rekapHarian, transaksiTanggal, absensiRentang, transaksiRentang, mutasiStokBahan, agregasiMutasi, pemakaianTanggal, pengeluaranStokHarian, pendapatanPerBagian, laporanKas, bacaPengeluaranManual, simpanPengeluaranManual, hapusPengeluaranManual } from '../lib/laporanService';
+import { laporanStok, rekapHarian, transaksiTanggal, absensiRentang, transaksiRentang, mutasiStokBahan, agregasiMutasi, pemakaianTanggal, pengeluaranStokHarian, pendapatanPerBagian, laporanKas, bacaPengeluaranManual, simpanPengeluaranManual, hapusPengeluaranManual, DEPT_PENGELUARAN } from '../lib/laporanService';
 import { exportLaporanStok, exportRekapHarian, exportTransaksi, exportAbsensi, exportMutasiStok, exportPemakaian, exportPengeluaranStok, exportPendapatanBagian, exportLaporanKas } from '../lib/excelExport';
 import { uang, todayStr, fmtTgl, metodeLabel } from '../lib/format';
 import { useSupabaseQuery } from '../lib/useSupabaseQuery';
@@ -35,10 +35,10 @@ export default function Laporan() {
     const manual = bacaPengeluaranManual();
     return (kasQ.data || []).map((h) => {
       const m = manual[h.tanggal];
-      let peng = { Kitchen: h.pengeluaran, Coffee: 0, Bar: 0 };
+      let peng = { Kitchen: h.pengeluaran, Coffee: 0, Bar: 0, Operasional: 0 };
       let sumber = 'auto';
-      if (m) { peng = { ...peng, Kitchen: m.Kitchen, Coffee: m.Coffee, Bar: m.Bar }; sumber = 'manual'; }
-      const totalPeng = peng.Kitchen + peng.Coffee + peng.Bar;
+      if (m) { peng = { ...peng, ...m }; sumber = 'manual'; }
+      const totalPeng = Object.values(peng).reduce((s, v) => s + (Number(v) || 0), 0);
       return { ...h, peng, totalPeng, sumber };
     });
   }, [kasQ.data]);
@@ -314,8 +314,8 @@ export default function Laporan() {
                     </tr>
                   </thead>
                   <tbody>
-                    {['Kitchen', 'Coffee', 'Bar'].map((b) => {
-                      const x = h.baris[b];
+                    {DEPT_PENGELUARAN.map((b) => {
+                      const x = h.baris[b] || { rev: 0, cash: 0, card: 0 };
                       const peng = h.peng[b];
                       return (
                         <tr key={b}>
@@ -338,7 +338,7 @@ export default function Laporan() {
                       <td>{uang(h.total.cash - h.totalPeng)}</td>
                       <td>{uang(h.total.card)}</td>
                       <td>{uang(Math.round(h.total.card * 0.03))}</td>
-                      <td>{uang(h.total.rev)}</td>
+                      <td>{uang(h.total.cash + Math.round(h.total.card * 0.03) - h.totalPeng)}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -347,7 +347,7 @@ export default function Laporan() {
                 <span className="muted small">
                   Pengeluaran {h.sumber === 'manual' ? '✎ manual' : '· otomatis dari catatan pembelian'}
                 </span>
-                {['Kitchen', 'Coffee', 'Bar'].map((d) => (
+                {DEPT_PENGELUARAN.map((d) => (
                   <label className="kas-in" key={d}>
                     <span>{d}</span>
                     <input
@@ -372,6 +372,7 @@ export default function Laporan() {
           ))}
           <p className="muted small" style={{ marginTop: 10 }}>
             Revenue = subtotal item (sebelum +3% EDC). Sisa Cash = Cash − Pengeluaran. 3% = Card × 0,03.
+            <b> TOTAL = Cash + 3% − Pengeluaran</b> (uang di tangan, sementara).
             Isi angka di kolom input untuk memakai pengeluaran manual per departemen (tersimpan di perangkat ini);
             tombol Reset mengembalikan ke otomatis dari catatan pembelian.
           </p>

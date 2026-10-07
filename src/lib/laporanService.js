@@ -185,6 +185,8 @@ const KELOMPOK_DEPT_LAPORAN = {
   'Juice': 'Bar', 'Smoothies': 'Bar', 'Milkshake': 'Bar', 'Minuman': 'Bar', 'Mineral Water': 'Bar'
 };
 export const DEPT_LAPORAN = ['Kitchen', 'Coffee', 'Bar'];
+const SALE_DEPT = ['Kitchen', 'Coffee', 'Bar'];
+export const DEPT_PENGELUARAN = ['Kitchen', 'Coffee', 'Bar', 'Operasional'];
 
 const KEY_PENGELUARAN_MANUAL = 'pengeluaranKasManual_v1';
 
@@ -195,7 +197,7 @@ export function bacaPengeluaranManual() {
     const obj = raw ? JSON.parse(raw) : {};
     for (const t of Object.keys(obj)) {
       if (!obj[t] || typeof obj[t] !== 'object') obj[t] = {};
-      for (const d of ['Kitchen', 'Coffee', 'Bar']) obj[t][d] = Number(obj[t][d]) || 0;
+      for (const d of DEPT_PENGELUARAN) obj[t][d] = Number(obj[t][d]) || 0;
     }
     return obj;
   } catch { return {}; }
@@ -203,7 +205,7 @@ export function bacaPengeluaranManual() {
 
 export function simpanPengeluaranManual(tanggal, dept, nominal) {
   const obj = bacaPengeluaranManual();
-  if (!obj[tanggal]) obj[tanggal] = { Kitchen: 0, Coffee: 0, Bar: 0 };
+  if (!obj[tanggal]) obj[tanggal] = { Kitchen: 0, Coffee: 0, Bar: 0, Operasional: 0 };
   obj[tanggal][dept] = Number(nominal) || 0;
   localStorage.setItem(KEY_PENGELUARAN_MANUAL, JSON.stringify(obj));
   return obj;
@@ -276,7 +278,7 @@ export async function laporanKas(dari, sampai) {
     .sort((x, y) => x.tanggal.localeCompare(y.tanggal))
     .map((h) => ({
       ...h,
-      total: DEPT_LAPORAN.reduce(
+      total: SALE_DEPT.reduce(
         (t, b) => { t.rev += h.baris[b].rev; t.cash += h.baris[b].cash; t.card += h.baris[b].card; return t; },
         kosong()
       )

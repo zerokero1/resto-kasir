@@ -268,7 +268,7 @@ export async function exportPengeluaranStok(rows, fileName = 'pengeluaran-stok.x
 export async function exportLaporanKas(data, fileName = 'laporan-kas.xlsx') {
   const wb = bukaBuku();
   const ws = wb.addWorksheet('Laporan Resto');
-  const DEPT = ['Kitchen', 'Coffee', 'Bar'];
+  const DEPT = ['Kitchen', 'Coffee', 'Bar', 'Operasional'];
   const numCols = [4, 6, 8, 10, 12, 13, 14]; // D,F,H,J,L,M,N
 
   const lebar = [11, 12, 4, 12, 4, 12, 4, 12, 4, 12, 4, 10, 8, 12, 4];
@@ -305,14 +305,15 @@ export async function exportLaporanKas(data, fileName = 'laporan-kas.xlsx') {
     }
     const t = h.total || { rev: 0, cash: 0, card: 0 };
     const totalPeng = h.totalPeng ?? h.pengeluaran ?? 0;
+    const edc3 = Math.round(t.card * 0.03);
     ws.getCell('B' + r).value = 'TOTAL';
     ws.getCell('D' + r).value = t.rev;
     ws.getCell('F' + r).value = t.cash;
     ws.getCell('H' + r).value = totalPeng;
     ws.getCell('J' + r).value = t.cash - totalPeng;
     ws.getCell('L' + r).value = t.card;
-    ws.getCell('M' + r).value = Math.round(t.card * 0.03);
-    ws.getCell('N' + r).value = t.rev;
+    ws.getCell('M' + r).value = edc3;
+    ws.getCell('N' + r).value = t.cash + edc3 - totalPeng;
     for (const col of numCols) ws.getCell(String.fromCharCode(64 + col) + r).numFmt = '#,##0';
     ws.getRow(r).font = { bold: true };
     borderBaris(ws, r);
