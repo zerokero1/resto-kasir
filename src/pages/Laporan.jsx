@@ -37,8 +37,8 @@ export default function Laporan() {
       const m = manual[h.tanggal];
       let peng = { Kitchen: h.pengeluaran, Coffee: 0, Bar: 0, Operasional: 0 };
       let sumber = 'auto';
-      if (h.pengeluaranDb) {
-        peng = { Kitchen: h.pengeluaranDb, Coffee: 0, Bar: 0, Operasional: 0 };
+      if (h.pengDb) {
+        peng = { Kitchen: 0, Coffee: 0, Bar: 0, Operasional: 0, ...h.pengDb };
         sumber = 'database';
       } else if (m) {
         peng = { ...peng, ...m };

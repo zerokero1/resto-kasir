@@ -243,17 +243,20 @@ export async function laporanKas(dari, sampai) {
   // Pengeluaran dari tabel resto_pengeluaran (bila sudah dibuat & diisi).
   let pengDb = [];
   try {
-    const r = await supabase.from('resto_pengeluaran').select('tanggal, nominal');
+    const r = await supabase.from('resto_pengeluaran').select('tanggal, departemen, nominal');
     if (r.error && /Could not find the table/.test(r.error.message)) pengDb = [];
     else if (r.error) throw new Error(r.error.message);
     else pengDb = r.data || [];
   } catch (e) {
     if (!/Could not find the table/.test(String(e.message))) throw e;
   }
-  const pengeluaranDb = {};
+  // per tanggal -> { departemen: nominal }
+  const pengDbDept = {};
   for (const x of pengDb) {
     const hari = tglWib(x.tanggal);
-    pengeluaranDb[hari] = (pengeluaranDb[hari] || 0) + (Number(x.nominal) || 0);
+    const dept = x.departemen === 'KOPI' || x.departemen === 'Kopi' || x.departemen === 'kopy' ? 'Coffee' : x.departemen;
+    pengDbDept[hari] ??= { Kitchen: 0, Coffee: 0, Bar: 0, Operasional: 0 };
+    pengDbDept[hari][dept] = (pengDbDept[hari][dept] || 0) + (Number(x.nominal) || 0);
   }
 
   const pmap = {};
@@ -276,7 +279,8 @@ export async function laporanKas(dari, sampai) {
         baris: { Kitchen: kosong(), Coffee: kosong(), Bar: kosong() },
         tanpa: 0,
         pengeluaran: pengeluaran[hari] || 0,
-        pengeluaranDb: pengeluaranDb[hari] || 0
+        pengDb: pengDbDept[hari] || null,
+        pengeluaranDb: pengDbDept[hari] ? Object.values(pengDbDept[hari]).reduce((s, v) => s + (v || 0), 0) : 0
       };
     }
     const d = perHari[hari];
