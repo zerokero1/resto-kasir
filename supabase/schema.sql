@@ -13,7 +13,7 @@
 create table if not exists public.resto_users (
   id uuid primary key references auth.users(id) on delete cascade,
   nama text not null,
-  role text not null default 'kasir' check (role in ('admin','kasir')),
+  role text not null default 'kasir' check (role in ('admin','kasir','boss')),
   aktif boolean not null default true,
   created_at timestamptz not null default now()
 );

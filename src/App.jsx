@@ -1,5 +1,5 @@
 import { useState, useEffect, Component } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { getProfile, onAuth, loadLogin } from './lib/authService';
 import Login from './pages/Login';
 import Layout from './components/Layout';
@@ -71,19 +71,44 @@ export default function App() {
     <Layout user={user} onLogout={() => setUser(null)}>
       <ErrorBoundary>
         <Routes>
-        <Route path="/" element={<POS user={user} />} />
+        <Route
+          path="/"
+          element={user.role === 'boss'
+            ? <Navigate to="/dashboard" replace />
+            : <POS user={user} />}
+        />
         <Route
           path="/dashboard"
-          element={user.role === 'admin'
+          element={(user.role === 'admin' || user.role === 'boss')
             ? <Dashboard />
             : <TidakAda judul="Dashboard" pesan="Halaman ini hanya untuk akun Admin." />}
         />
         <Route path="/riwayat" element={<Riwayat />} />
-        <Route path="/hutang" element={<Hutang />} />
-        <Route path="/stok" element={<Stok user={user} />} />
-        <Route path="/produk" element={<Produk />} />
+        <Route
+          path="/hutang"
+          element={user.role === 'boss'
+            ? <TidakAda judul="Belum Bayar" pesan="Akun Bos hanya bisa membuka Dashboard, Riwayat, dan Laporan." />
+            : <Hutang />}
+        />
+        <Route
+          path="/stok"
+          element={user.role === 'boss'
+            ? <TidakAda judul="Stok" pesan="Akun Bos hanya bisa membuka Dashboard, Riwayat, dan Laporan." />
+            : <Stok user={user} />}
+        />
+        <Route
+          path="/produk"
+          element={user.role === 'boss'
+            ? <TidakAda judul="Produk" pesan="Akun Bos hanya bisa membuka Dashboard, Riwayat, dan Laporan." />
+            : <Produk />}
+        />
         <Route path="/laporan" element={<Laporan />} />
-        <Route path="/laporan-harian" element={<LaporanHarian />} />
+        <Route
+          path="/laporan-harian"
+          element={user.role === 'boss'
+            ? <TidakAda judul="Harian" pesan="Akun Bos hanya bisa membuka Dashboard, Riwayat, dan Laporan." />
+            : <LaporanHarian />}
+        />
         <Route
           path="/karyawan"
           element={user.role === 'admin'
