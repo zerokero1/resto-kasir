@@ -62,7 +62,7 @@ export default function POS({ user }) {
     }
   }
 
-  async function bayar(p, metode, bayarMasuk, totalFinal) {
+  async function bayar(p, metode, bayarMasuk, totalFinal, diskon = 0) {
     setBusy(true);
     try {
       const total = Number(totalFinal || p.total);
@@ -76,6 +76,7 @@ export default function POS({ user }) {
         tanggal_lunas: new Date().toISOString(),
         metode,
         total,
+        diskon: Number(diskon) || 0,
         bayar: jumlah > 0 ? jumlah : total,
         kembalian: metode === 'tunai' ? Math.max(0, jumlah - total) : 0
       };

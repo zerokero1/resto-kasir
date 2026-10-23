@@ -18,6 +18,7 @@ export function hitungBagian(subtotalMenu, metode) {
 function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy, mulaiSplit }) {
   const [metode, setMetode] = useState('tunai');
   const [bayar, setBayar] = useState('');
+  const [diskon, setDiskon] = useState('');
   const [split, setSplit] = useState(!!mulaiSplit);
   const [items, setItems] = useState(null);
   const [itemErr, setItemErr] = useState('');
@@ -26,9 +27,11 @@ function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy, mulaiSplit }) {
   const [step, setStep] = useState(0);
   const [cara, setCara] = useState({});
   const totalMenu = Number(p.total);
+  const diskonNum = Math.min(Math.max(Number(diskon) || 0, 0), totalMenu);
+  const dasar = Math.max(0, totalMenu - diskonNum);
   const pakaiPajak = metode === 'debit';
-  const total = pakaiPajak ? hitungPajakEdc(totalMenu) : totalMenu;
-  const pajak = total - totalMenu;
+  const total = pakaiPajak ? hitungPajakEdc(dasar) : dasar;
+  const pajak = total - dasar;
   const uangBayar = Number(bayar) || 0;
   const kembalian = Math.max(0, uangBayar - total);
 
@@ -155,7 +158,7 @@ function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy, mulaiSplit }) {
 
   function kirim(e) {
     e.preventDefault();
-    onBayar(p, metode, bayar, total);
+    onBayar(p, metode, bayar, total, diskonNum);
   }
 
   function kirimSplit(e) {
@@ -190,6 +193,23 @@ function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy, mulaiSplit }) {
 
         {!split && (
           <>
+            <label className="lbl">Diskon (Rp) — opsional</label>
+            <div className="f-row">
+              <input
+                className="input"
+                type="number"
+                inputMode="numeric"
+                placeholder="0"
+                value={diskon}
+                onChange={(e) => setDiskon(e.target.value)}
+              />
+              {diskonNum > 0 && (
+                <button className="btn btn-sm" type="button" onClick={() => setDiskon('')}>Hapus</button>
+              )}
+            </div>
+            {diskonNum > 0 && (
+              <div className="total-line">Diskon: <b>− {uang(diskonNum)}</b></div>
+            )}
             {pakaiPajak && (
               <div className="total-line">
                 Tax {PAJAK_EDC_PERSEN}% EDC: <b>{uang(pajak)}</b>
@@ -240,7 +260,7 @@ function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy, mulaiSplit }) {
                 </div>
                 <div className="muted small" style={{ marginTop: 6 }}>
                   {metode === 'debit'
-                    ? 'Mesin EDC menambah tax ' + PAJAK_EDC_PERSEN + '% dari ' + uang(totalMenu) + '. Cocokkan nominal di layar mesin, lalu masukkan di atas bila berbeda.'
+                    ? 'Mesin EDC menambah tax ' + PAJAK_EDC_PERSEN + '% dari ' + uang(dasar) + '. Cocokkan nominal di layar mesin, lalu masukkan di atas bila berbeda.'
                     : 'Masukkan nominal yang tertera di aplikasi QRIS.'}
                 </div>
               </>

@@ -37,7 +37,7 @@ export default function Riwayat() {
     return () => { supabase.removeChannel(ch); };
   }, [tanggal, muat]);
 
-  async function bayar(p, metode, bayarMasuk, totalFinal) {
+  async function bayar(p, metode, bayarMasuk, totalFinal, diskon = 0) {
     setBusy(true);
     try {
       const total = Number(totalFinal || p.total);
@@ -51,6 +51,7 @@ export default function Riwayat() {
         tanggal_lunas: new Date().toISOString(),
         metode,
         total,
+        diskon: Number(diskon) || 0,
         bayar: jumlah > 0 ? jumlah : total,
         kembalian: metode === 'tunai' ? Math.max(0, jumlah - total) : 0
       };

@@ -51,9 +51,12 @@ export default function StrukModal({ p, onClose, autoPrint }) {
     ...(() => {
       const totalItem = itemRows.reduce((s, it) => s + (Number(it.subtotal) || 0), 0);
       const totalNota = Number(p.total) || 0;
-      const selisih = totalNota - totalItem;
+      const diskon = Number(p.diskon) || 0;
+      const dasar = Math.max(0, totalItem - diskon);
+      const pajakTampil = Math.max(0, totalNota - dasar);
       return [
-        ...(selisih > 0 ? [{ text: 'Tax/biaya tambahan' }, { text: selisih.toLocaleString('id-ID') }] : []),
+        ...(diskon > 0 ? [{ text: 'Diskon' }, { text: '-' + diskon.toLocaleString('id-ID') }] : []),
+        ...(pajakTampil > 0 ? [{ text: 'Tax/biaya tambahan' }, { text: pajakTampil.toLocaleString('id-ID') }] : []),
         { text: '===============================' },
         { text: 'TOTAL', width: true },
         { text: totalNota.toLocaleString('id-ID'), width: true },
@@ -172,10 +175,19 @@ export default function StrukModal({ p, onClose, autoPrint }) {
           {(() => {
             const totalItem = itemRows.reduce((s, it) => s + (Number(it.subtotal) || 0), 0);
             const totalNota = Number(p.total) || 0;
-            const selisih = totalNota - totalItem;
-            return selisih > 0 ? (
-              <div className="s-item"><span>Tax/biaya tambahan</span><span>{selisih.toLocaleString('id-ID')}</span></div>
-            ) : null;
+            const diskon = Number(p.diskon) || 0;
+            const dasar = Math.max(0, totalItem - diskon);
+            const pajakTampil = Math.max(0, totalNota - dasar);
+            return (
+              <>
+                {diskon > 0 && (
+                  <div className="s-item"><span>Diskon</span><span>-{diskon.toLocaleString('id-ID')}</span></div>
+                )}
+                {pajakTampil > 0 && (
+                  <div className="s-item"><span>Tax/biaya tambahan</span><span>{pajakTampil.toLocaleString('id-ID')}</span></div>
+                )}
+              </>
+            );
           })()}
           <div className="s-rule" />
           <div className="s-item"><b>TOTAL</b><b>{Number(p.total).toLocaleString('id-ID')}</b></div>

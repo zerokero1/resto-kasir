@@ -49,6 +49,7 @@ create table if not exists public.resto_pesanan (
   total numeric(12,0) not null default 0,
   bayar numeric(12,0) not null default 0,
   kembalian numeric(12,0) not null default 0,
+  diskon numeric(12,0) not null default 0,
   metode text not null default 'tunai' check (metode in ('tunai','qris','debit','hutang')),
   user_id uuid references public.resto_users(id),
   nama_kasir text,
