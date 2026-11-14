@@ -11,43 +11,58 @@ export async function laporanStok() {
   return data;
 }
 
+/**
+ * PostgREST membatasi 1.000 baris per permintaan, jadi data laporan harus
+ * diambil per halaman. Tanpa ini, rekap >1.000 nota (mis. 30 hari) terpotong
+ * diam-diam dan total pemasukan jadi lebih kecil dari seharusnya.
+ */
+async function ambilSemua(buatQuery, ukuran = 1000) {
+  const hasil = [];
+  for (let awal = 0; ; awal += ukuran) {
+    const { data, error } = await buatQuery().range(awal, awal + ukuran - 1);
+    if (error) throw new Error(error.message);
+    hasil.push(...(data || []));
+    if (!data || data.length < ukuran) break;
+  }
+  return hasil;
+}
+
 export async function transaksiTanggal(tgl) {
   if (!tgl) return [];
   const { dari, sampai } = rentangUtcWib(tgl);
-  const { data, error } = await supabase
+  return ambilSemua(() => supabase
     .from('resto_pesanan')
     .select('*')
     .gte('tanggal', dari)
     .lt('tanggal', sampai)
-    .order('tanggal', { ascending: false });
-  if (error) throw new Error(error.message);
-  return data;
+    .order('tanggal', { ascending: false })
+    .order('id', { ascending: true }));
 }
 
 export async function transaksiRentang(dari, sampai) {
   if (!dari || !sampai) return [];
   const a = rentangUtcWib(dari);
   const b = rentangUtcWib(sampai);
-  const { data, error } = await supabase
+  return ambilSemua(() => supabase
     .from('resto_pesanan')
     .select('*, items:resto_pesanan_item(*)')
     .gte('tanggal', a.dari)
     .lt('tanggal', b.sampai)
-    .order('tanggal', { ascending: true });
-  if (error) throw new Error(error.message);
-  return data;
+    .order('tanggal', { ascending: true })
+    .order('id', { ascending: true }));
 }
 
 export async function rekapHarian(dari, sampai) {
   if (!dari || !sampai) return [];
   const a = rentangUtcWib(dari);
   const b = rentangUtcWib(sampai);
-  const { data, error } = await supabase
+  const data = await ambilSemua(() => supabase
     .from('resto_pesanan')
     .select('tanggal, total, metode')
     .gte('tanggal', a.dari)
-    .lt('tanggal', b.sampai);
-  if (error) throw new Error(error.message);
+    .lt('tanggal', b.sampai)
+    .order('tanggal', { ascending: true })
+    .order('id', { ascending: true }));
   const map = {};
   for (const p of data) {
     const k = tglWib(p.tanggal);
