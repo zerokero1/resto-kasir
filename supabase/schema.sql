@@ -138,6 +138,60 @@ begin
   end loop;
 end $$;
 
+-- ---------- PENGATURAN (PIN admin untuk edit transaksi) ----------
+create table if not exists public.resto_pengaturan (
+  kunci text primary key,
+  nilai text not null,
+  updated_at timestamptz not null default now()
+);
+
+insert into public.resto_pengaturan (kunci, nilai)
+values ('pin_admin', '1234')
+on conflict (kunci) do nothing;
+
+alter table public.resto_pengaturan enable row level security;
+
+create or replace function public.cek_pin_admin(pin text)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.resto_pengaturan
+    where kunci = 'pin_admin' and nilai = pin
+  );
+$$;
+
+revoke all on function public.cek_pin_admin(text) from public;
+grant execute on function public.cek_pin_admin(text) to anon, authenticated;
+
+create or replace function public.ganti_pin_admin(pin_lama text, pin_baru text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if pin_baru !~ '^[0-9]{4,6}$' then
+    raise exception 'PIN baru harus 4-6 angka';
+  end if;
+  if not exists (
+    select 1 from public.resto_pengaturan
+    where kunci = 'pin_admin' and nilai = pin_lama
+  ) then
+    return false;
+  end if;
+  update public.resto_pengaturan
+     set nilai = pin_baru, updated_at = now()
+   where kunci = 'pin_admin';
+  return true;
+end;
+$$;
+
+revoke all on function public.ganti_pin_admin(text, text) from public;
+grant execute on function public.ganti_pin_admin(text, text) to anon, authenticated;
+
 -- ---------- SEED: akun admin awal ----------
 -- Admin: admin@dayangresto.id / admin123
 -- Kasir: kasir@dayangresto.id  / kasir123

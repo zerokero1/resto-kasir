@@ -6,6 +6,8 @@ import { uang, todayStr, fmtTgl, metodeLabel } from '../lib/format';
 import StrukModal from '../components/Struk';
 import PaymentModal from '../components/Payment';
 import TambahItemModal from '../components/TambahItem';
+import PinAdminModal from '../components/PinAdmin';
+import EditTransaksiModal from '../components/EditTransaksi';
 import { simpanSplitBayar, batalkanPesanan } from '../lib/pesananService';
 
 export default function Riwayat() {
@@ -16,6 +18,8 @@ export default function Riwayat() {
   const [payFor, setPayFor] = useState(null);
   const [splitOpen, setSplitOpen] = useState(false);
   const [editFor, setEditFor] = useState(null);
+  const [pinFor, setPinFor] = useState(null);
+  const [editFullFor, setEditFullFor] = useState(null);
   const [autoPrint, setAutoPrint] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -147,7 +151,19 @@ export default function Riwayat() {
                 </div>
               )}
             </div>
-            <div className="row-end"><b>{uang(p.total)}</b><span className="muted small">{p.lunas === false ? 'klik → bayar' : 'lihat ›'}</span></div>
+            <div className="row-end">
+              <b>{uang(p.total)}</b>
+              <span className="muted small">{p.lunas === false ? 'klik → bayar' : 'lihat ›'}</span>
+              <div>
+                <button
+                  className="btn btn-sm"
+                  style={{ marginTop: 6 }}
+                  onClick={(e) => { e.stopPropagation(); setPinFor(p); }}
+                >
+                  ✏️ Edit
+                </button>
+              </div>
+            </div>
           </div>
         ))}
         {err && <div className="err">{err}</div>}
@@ -172,6 +188,25 @@ export default function Riwayat() {
             setEditFor(null);
             await muat();
             if (cetak) { setAutoPrint(true); setView(data); }
+          }}
+        />
+      )}
+      {pinFor && (
+        <PinAdminModal
+          judul="Edit Transaksi"
+          pesan={`Masukkan PIN admin untuk mengedit nota ${pinFor.id}.`}
+          onClose={() => setPinFor(null)}
+          onSukses={() => { setEditFullFor(pinFor); setPinFor(null); }}
+        />
+      )}
+      {editFullFor && (
+        <EditTransaksiModal
+          p={editFullFor}
+          onClose={() => setEditFullFor(null)}
+          onSaved={async (data) => {
+            setEditFullFor(null);
+            setInfo('Nota ' + data.id + ' berhasil diperbarui.');
+            await muat();
           }}
         />
       )}

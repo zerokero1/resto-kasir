@@ -70,6 +70,12 @@ export function jamWib(tanggal) {
   return new Date(new Date(tanggal).getTime() + OFFSET_WIB_MS).getUTCHours();
 }
 
+// timestamp UTC -> 'HH:MM:SS' versi WIB (dipakai saat memindah tanggal nota)
+export function waktuWib(tanggal) {
+  if (!tanggal) return '00:00:00';
+  return new Date(new Date(tanggal).getTime() + OFFSET_WIB_MS).toISOString().slice(11, 19);
+}
+
 /** Tanggal panjang versi WIB, mis. "Sabtu, 27 September 2026". */
 export function hariIni() {
   return keWib(new Date().toISOString()).toLocaleDateString('id-ID', {

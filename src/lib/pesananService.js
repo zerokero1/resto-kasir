@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { tglWib } from './format';
+import { tglWib, waktuWib, uang, hitungPajakEdc } from './format';
 
 /**
  * Nomor nota harian "TRX-YYYYMMDD-NNN" dengan tanggal versi WIB.
@@ -160,6 +160,131 @@ export async function hapusItemPesanan(pesanan, itemId) {
 
   await kembalikanStokBahan([item]);
   return data;
+}
+
+/**
+ * Edit transaksi lengkap (dipakai setelah PIN admin benar): ubah qty, tambah
+ * atau hapus item, metode bayar, diskon, tanggal, dan catatan. Stok bahan ikut
+ * disesuaikan dari selisih qty supaya nota lama yang diedit tidak membuat stok
+ * melenceng.
+ */
+export async function simpanEditTransaksi(pesanan, data) {
+  const daftar = Array.isArray(data.items) ? data.items : [];
+  if (!daftar.length) throw new Error('Nota harus punya minimal satu item.');
+
+  const lama = await ambilItemPesanan(pesanan.id);
+  const mapLama = {};
+  for (const it of lama) mapLama[it.id] = it;
+
+  // Harga item lama selalu diambil dari database (bukan dari layar), supaya
+  // total tidak bisa melenceng dari subtotal yang benar-benar tersimpan.
+  const efektif = daftar.map((it) => {
+    const asal = it.id ? mapLama[it.id] : null;
+    return {
+      ...it,
+      id: asal ? asal.id : undefined,
+      produk_id: asal ? asal.produk_id : it.produk_id,
+      nama: asal ? asal.nama : it.nama,
+      harga: asal ? (Number(asal.harga) || 0) : (Number(it.harga) || 0),
+      qty: Number(it.qty) || 0
+    };
+  });
+
+  // ---- 1) Validasi & hitung header DULU, sebelum ada yang ditulis. ----
+  // Kalau validasi baru dilakukan setelah item/stok diubah, nota bisa
+  // tertinggal setengah jadi saat inputnya tidak valid (mis. uang kurang).
+  for (const it of efektif) {
+    if (!(it.qty > 0)) throw new Error('Qty setiap item harus lebih dari 0.');
+  }
+
+  const itemSum = efektif.reduce((s, it) => s + it.harga * it.qty, 0);
+  const diskon = Math.min(Math.max(Number(data.diskon) || 0, 0), itemSum);
+  const dasar = itemSum - diskon;
+  const metode = ['tunai', 'qris', 'debit', 'hutang'].includes(data.metode) ? data.metode : 'tunai';
+  const hutang = metode === 'hutang';
+  const total = hutang ? dasar : (metode === 'debit' ? hitungPajakEdc(dasar) : dasar);
+
+  let bayar = 0;
+  if (!hutang) {
+    bayar = Number(data.bayar);
+    if (!Number.isFinite(bayar) || bayar <= 0) bayar = total;
+    if (metode === 'tunai' && bayar < total) {
+      throw new Error('Uang dibayar kurang dari total ' + uang(total) + '.');
+    }
+    if (metode !== 'tunai') bayar = total;
+  }
+  const kembalian = !hutang && metode === 'tunai' ? Math.max(0, bayar - total) : 0;
+
+  let tanggal = pesanan.tanggal;
+  if (data.tanggal && data.tanggal !== tglWib(pesanan.tanggal)) {
+    const baru = new Date(`${data.tanggal}T${waktuWib(pesanan.tanggal)}+07:00`);
+    if (Number.isNaN(baru.getTime())) throw new Error('Tanggal transaksi tidak valid.');
+    tanggal = baru.toISOString();
+  }
+
+  // ---- 2) Perbarui item dan sesuaikan stok dari selisih qty. ----
+  const dipakai = new Set();
+  const stokKurang = [];
+  const stokKembali = [];
+
+  for (const it of efektif) {
+    if (it.id) {
+      const asal = mapLama[it.id];
+      dipakai.add(it.id);
+      const qtyLama = Number(asal.qty) || 0;
+      if (it.qty !== qtyLama) {
+        const { error } = await supabase
+          .from('resto_pesanan_item')
+          .update({ qty: it.qty, subtotal: it.harga * it.qty })
+          .eq('id', it.id);
+        if (error) throw new Error(error.message);
+        if (it.qty > qtyLama) stokKurang.push({ produk_id: asal.produk_id, qty: it.qty - qtyLama });
+        else stokKembali.push({ produk_id: asal.produk_id, qty: qtyLama - it.qty });
+      }
+    } else {
+      const { error } = await supabase.from('resto_pesanan_item').insert({
+        pesanan_id: pesanan.id,
+        produk_id: it.produk_id ?? null,
+        nama: it.nama,
+        harga: it.harga,
+        qty: it.qty,
+        subtotal: it.harga * it.qty
+      });
+      if (error) throw new Error(error.message);
+      if (it.produk_id) stokKurang.push({ produk_id: it.produk_id, qty: it.qty });
+    }
+  }
+
+  // Hapus item yang dibuang dari daftar.
+  for (const asal of lama) {
+    if (dipakai.has(asal.id)) continue;
+    const { error } = await supabase.from('resto_pesanan_item').delete().eq('id', asal.id);
+    if (error) throw new Error(error.message);
+    if (asal.produk_id) stokKembali.push({ produk_id: asal.produk_id, qty: Number(asal.qty) || 0 });
+  }
+
+  if (stokKurang.length) await kurangiStokBahan(stokKurang);
+  if (stokKembali.length) await kembalikanStokBahan(stokKembali);
+
+  // ---- 3) Simpan header nota. ----
+  const { data: row, error } = await supabase
+    .from('resto_pesanan')
+    .update({
+      total,
+      diskon,
+      metode,
+      bayar,
+      kembalian,
+      tanggal,
+      catatan: data.catatan ? String(data.catatan) : null,
+      lunas: !hutang,
+      tanggal_lunas: hutang ? null : (pesanan.tanggal_lunas || new Date().toISOString())
+    })
+    .eq('id', pesanan.id)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return row;
 }
 
 /**
