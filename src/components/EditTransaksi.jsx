@@ -161,7 +161,7 @@ export default function EditTransaksiModal({ p, onClose, onSaved }) {
               key={m.v}
               className={'chip' + (metode === m.v ? ' on' : '')}
               disabled={busy}
-              onClick={() => setMetode(m.v)}
+              onClick={() => { setMetode(m.v); setBayar(''); }}
             >
               {m.label}
             </button>
