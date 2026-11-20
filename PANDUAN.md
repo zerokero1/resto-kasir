@@ -247,10 +247,22 @@ Departemen: **Kitchen**, **Coffee**, **Bar**, dan **Operasional** (khusus pengel
 **GRAND TOTAL** di bawah adalah jumlah seluruh rentang tanggal yang dipilih.
 
 Sumber **Pengeluaran** (berurutan prioritas):
-1. Tabel `resto_pengeluaran` bila sudah diisi (per departemen).
-2. Input manual di halaman Laporan Kas (tersimpan di perangkat itu saja).
-3. Otomatis dari catatan pembelian stok yang mengandung `Rp…`
+1. Data hasil tombol **💾 Simpan** di Laporan Kas — tersimpan di Supabase, terlihat di semua perangkat.
+2. Data lama hasil impor di tabel `resto_pengeluaran` — baca-saja, ditandai "dari database".
+3. Draf yang baru diketik di perangkat ini — belum permanen, ditandai "belum disimpan".
+4. Otomatis dari catatan pembelian stok yang mengandung `Rp…`
    (mis. catatan `Belanja pasar Rp150.000` → terhitung Rp150.000).
+
+### Cara menyimpan pengeluaran
+1. Buka **📊 Laporan → Laporan Kas**, pilih rentang tanggal.
+2. Isi nominal **Kitchen / Coffee / Bar / Operasional** pada blok tanggal yang dimaksud.
+3. Tekan **💾 Simpan** di blok itu, atau **💾 Simpan Semua** untuk seluruh tanggal dalam rentang.
+4. Tunggu pesan `✓ Tersimpan di server: …`; status blok berubah menjadi "✓ tersimpan di server".
+5. Tombol **Reset** mengembalikan tanggal itu ke nilai otomatis (data tersimpan dihapus).
+
+> **Penting:** angka yang baru diketik memang langsung terlihat di tabel, tetapi **belum permanen**
+> sampai tombol **Simpan** ditekan. Tanpa menyimpan, angka hanya tersimpan sementara di perangkat
+> itu dan hilang saat login ulang atau cache dibersihkan.
 
 > **Catatan diskon:** diskon tercatat di nota & struk, tetapi **Revenue/Cash/EDC/QRIS di
 > Laporan Kas memakai subtotal item**, sehingga diskon tidak mengurangi omzet laporan.

@@ -205,6 +205,10 @@ export const DEPT_PENGELUARAN = ['Kitchen', 'Coffee', 'Bar', 'Operasional'];
 
 const KEY_PENGELUARAN_MANUAL = 'pengeluaranKasManual_v1';
 
+// Penanda baris hasil input Laporan Kas, supaya tidak tertukar dengan data
+// pengeluaran yang diimpor dari Excel/ nota (catatan bebas).
+const CATATAN_MANUAL_KAS = 'MANUAL_KAS';
+
 /** Baca input manual pengeluaran per hari per departemen (disimpan lokal di perangkat). */
 export function bacaPengeluaranManual() {
   try {
@@ -234,6 +238,48 @@ export function hapusPengeluaranManual(tanggal) {
 }
 
 /**
+ * Simpan pengeluaran Laporan Kas ke Supabase supaya terlihat di semua perangkat
+ * dan tidak hilang saat login ulang / cache dibersihkan.
+ * Baris lama bertanda MANUAL_KAS untuk tanggal itu diganti, data impor lain
+ * (dari nota/Excel) tidak disentuh.
+ */
+export async function simpanPengeluaranKeServer(tanggal, peng) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(tanggal || ''))) {
+    throw new Error('Tanggal pengeluaran tidak valid.');
+  }
+  const nilai = {};
+  for (const d of DEPT_PENGELUARAN) {
+    const n = Number(peng?.[d]) || 0;
+    if (!Number.isFinite(n) || n < 0) throw new Error('Nominal ' + d + ' tidak valid.');
+    nilai[d] = Math.round(n);
+  }
+
+  const hapus = await supabase
+    .from('resto_pengeluaran')
+    .delete()
+    .eq('tanggal', tanggal)
+    .eq('catatan', CATATAN_MANUAL_KAS);
+  if (hapus.error) throw new Error(hapus.error.message);
+
+  const baris = DEPT_PENGELUARAN
+    .filter((d) => nilai[d] > 0)
+    .map((d) => ({
+      tanggal,
+      departemen: d,
+      nama: 'Pengeluaran Kas',
+      qty: '1',
+      nominal: nilai[d],
+      catatan: CATATAN_MANUAL_KAS
+    }));
+
+  if (baris.length) {
+    const { error } = await supabase.from('resto_pengeluaran').insert(baris);
+    if (error) throw new Error(error.message);
+  }
+  return baris.length;
+}
+
+/**
  * Laporan Kas persis template Excel:
  * baris per tanggal -> Deskripsi (Kitchen/Coffee/Bar) + TOTAL,
  * dengan Revenue (subtotal item, tanpa +3% EDC), Cash, Card,
@@ -258,20 +304,24 @@ export async function laporanKas(dari, sampai) {
   // Pengeluaran dari tabel resto_pengeluaran (bila sudah dibuat & diisi).
   let pengDb = [];
   try {
-    const r = await supabase.from('resto_pengeluaran').select('tanggal, departemen, nominal');
+    const r = await supabase.from('resto_pengeluaran').select('tanggal, departemen, nominal, catatan');
     if (r.error && /Could not find the table/.test(r.error.message)) pengDb = [];
     else if (r.error) throw new Error(r.error.message);
     else pengDb = r.data || [];
   } catch (e) {
     if (!/Could not find the table/.test(String(e.message))) throw e;
   }
-  // per tanggal -> { departemen: nominal }
+  // per tanggal -> { departemen: nominal }. Data hasil tombol Simpan (MANUAL_KAS)
+  // dipisah supaya tetap bisa diedit; data impor lain bersifat read-only.
   const pengDbDept = {};
+  const pengManualDept = {};
   for (const x of pengDb) {
     const hari = tglWib(x.tanggal);
     const dept = x.departemen === 'KOPI' || x.departemen === 'Kopi' || x.departemen === 'kopy' ? 'Coffee' : x.departemen;
-    pengDbDept[hari] ??= { Kitchen: 0, Coffee: 0, Bar: 0, Operasional: 0 };
-    pengDbDept[hari][dept] = (pengDbDept[hari][dept] || 0) + (Number(x.nominal) || 0);
+    const manual = String(x.catatan || '').toUpperCase() === CATATAN_MANUAL_KAS;
+    const target = manual ? pengManualDept : pengDbDept;
+    target[hari] ??= { Kitchen: 0, Coffee: 0, Bar: 0, Operasional: 0 };
+    target[hari][dept] = (target[hari][dept] || 0) + (Number(x.nominal) || 0);
   }
 
   const pmap = {};
@@ -286,18 +336,22 @@ export async function laporanKas(dari, sampai) {
     pengeluaran[hari] = (pengeluaran[hari] || 0) + (h ? Number(h[1].replace(/\./g, '')) || 0 : 0);
   }
 
+  function baruHari(hari) {
+    if (perHari[hari]) return;
+    perHari[hari] = {
+      tanggal: hari,
+      baris: { Kitchen: kosong(), Coffee: kosong(), Bar: kosong() },
+      tanpa: 0,
+      pengeluaran: pengeluaran[hari] || 0,
+      pengDb: pengDbDept[hari] || null,
+      pengManualDb: pengManualDept[hari] || null,
+      pengeluaranDb: pengDbDept[hari] ? Object.values(pengDbDept[hari]).reduce((s, v) => s + (v || 0), 0) : 0
+    };
+  }
+
   for (const p of pesanan) {
     const hari = tglWib(p.tanggal);
-    if (!perHari[hari]) {
-      perHari[hari] = {
-        tanggal: hari,
-        baris: { Kitchen: kosong(), Coffee: kosong(), Bar: kosong() },
-        tanpa: 0,
-        pengeluaran: pengeluaran[hari] || 0,
-        pengDb: pengDbDept[hari] || null,
-        pengeluaranDb: pengDbDept[hari] ? Object.values(pengDbDept[hari]).reduce((s, v) => s + (v || 0), 0) : 0
-      };
-    }
+    baruHari(hari);
     const d = perHari[hari];
     for (const it of p.items || []) {
       const sub = Number(it.subtotal) || 0;
@@ -309,6 +363,16 @@ export async function laporanKas(dari, sampai) {
       else if (p.metode === 'debit') x.edc += sub;
       else if (p.metode === 'qris') x.qris += sub;
     }
+  }
+
+  // Tanggal yang hanya punya pengeluaran (tanpa transaksi) tetap tampil supaya
+  // bisa diisi dan dikoreksi lewat tombol Simpan.
+  for (const hari of new Set([
+    ...Object.keys(pengeluaran),
+    ...Object.keys(pengDbDept),
+    ...Object.keys(pengManualDept)
+  ])) {
+    if (hari >= dari && hari <= sampai) baruHari(hari);
   }
 
   return Object.values(perHari)

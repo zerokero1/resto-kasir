@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { laporanStok, rekapHarian, transaksiTanggal, absensiRentang, transaksiRentang, mutasiStokBahan, agregasiMutasi, pemakaianTanggal, pengeluaranStokHarian, pendapatanPerBagian, laporanKas, bacaPengeluaranManual, simpanPengeluaranManual, hapusPengeluaranManual, DEPT_PENGELUARAN } from '../lib/laporanService';
+import { laporanStok, rekapHarian, transaksiTanggal, absensiRentang, transaksiRentang, mutasiStokBahan, agregasiMutasi, pemakaianTanggal, pengeluaranStokHarian, pendapatanPerBagian, laporanKas, bacaPengeluaranManual, simpanPengeluaranManual, hapusPengeluaranManual, simpanPengeluaranKeServer, DEPT_PENGELUARAN } from '../lib/laporanService';
 import { exportLaporanStok, exportRekapHarian, exportTransaksi, exportAbsensi, exportMutasiStok, exportPemakaian, exportPengeluaranStok, exportPendapatanBagian, exportLaporanKas } from '../lib/excelExport';
 import { uang, todayStr, fmtTgl, metodeLabel } from '../lib/format';
 import { useSupabaseQuery } from '../lib/useSupabaseQuery';
@@ -29,6 +29,7 @@ export default function Laporan() {
   const pengQ = useSupabaseQuery(() => pengeluaranStokHarian(dari, sampai), [dari, sampai]);
   const bagQ = useSupabaseQuery(() => pendapatanPerBagian(dari, sampai), [dari, sampai]);
   const [kasVersi, setKasVersi] = useState(0);
+  const [kasInfo, setKasInfo] = useState('');
   const kasQ = useSupabaseQuery(() => laporanKas(dari, sampai), [dari, sampai, kasVersi]);
 
   const kasR = useMemo(() => {
@@ -43,6 +44,9 @@ export default function Laporan() {
       } else if (m) {
         peng = { ...peng, ...m };
         sumber = 'manual';
+      } else if (h.pengManualDb) {
+        peng = { ...peng, ...h.pengManualDb };
+        sumber = 'server';
       }
       const totalPeng = Object.values(peng).reduce((s, v) => s + (Number(v) || 0), 0);
       return { ...h, peng, totalPeng, sumber };
@@ -62,6 +66,28 @@ export default function Laporan() {
   async function run(name, fn) {
     setBusy(true);
     try { await fn(); } finally { setBusy(false); }
+  }
+
+  async function simpanKas(daftar) {
+    const target = daftar.filter((h) => h.sumber !== 'database');
+    if (!target.length) {
+      setKasInfo('Tidak ada pengeluaran yang perlu disimpan.');
+      return;
+    }
+    setBusy(true);
+    setKasInfo('Menyimpan…');
+    try {
+      for (const h of target) {
+        await simpanPengeluaranKeServer(h.tanggal, h.peng);
+        hapusPengeluaranManual(h.tanggal);
+      }
+      setKasVersi((v) => v + 1);
+      setKasInfo('✓ Tersimpan di server: ' + target.map((h) => h.tanggal).join(', ') + '.');
+    } catch (e) {
+      setKasInfo('Gagal menyimpan: ' + e.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   const activeError = tab === 'Stok' ? stokQ.error
@@ -305,8 +331,10 @@ export default function Laporan() {
             <span className="k-head">Laporan Kas</span>
             <input className="input" type="date" value={dari} onChange={(e) => setDari(e.target.value)} />
             <input className="input" type="date" value={sampai} onChange={(e) => setSampai(e.target.value)} />
+            <button className="btn" disabled={busy || kasR.length === 0} onClick={() => simpanKas(kasR)}>💾 Simpan Semua</button>
             <button className="btn" disabled={busy} onClick={() => run('k', () => exportLaporanKas(kasR, `laporan-kas-${dari}-${sampai}.xlsx`))}>⬇️ Excel</button>
           </div>
+          {kasInfo && <p className="muted small" style={{ marginTop: 0 }}>{kasInfo}</p>}
           <Memuat q={kasQ} />
           {kasR.length === 0 && <p className="muted">Tidak ada data pada rentang ini.</p>}
           {kasR.map((h) => (
@@ -355,7 +383,8 @@ export default function Laporan() {
                 <span className="muted small">
                   Pengeluaran {h.sumber === 'database'
                     ? '· dari database'
-                    : h.sumber === 'manual' ? '✎ manual' : '· otomatis dari catatan pembelian'}
+                    : h.sumber === 'server' ? '✓ tersimpan di server'
+                    : h.sumber === 'manual' ? '✎ belum disimpan' : '· otomatis dari catatan pembelian'}
                 </span>
                 {h.sumber === 'database' ? (
                   <span className="muted small">Total: {uang(h.pengeluaranDb)} — {Object.entries(h.peng).filter(([, v]) => v > 0).map(([d]) => d).join(', ') || '-'}</span>
@@ -377,8 +406,14 @@ export default function Laporan() {
                         />
                       </label>
                     ))}
-                    {h.sumber === 'manual' && (
-                      <button className="btn" onClick={() => { hapusPengeluaranManual(h.tanggal); setKasVersi((v) => v + 1); }}>Reset</button>
+                    <button className="btn btn-sm" disabled={busy} onClick={() => simpanKas([h])}>💾 Simpan</button>
+                    {(h.sumber === 'manual' || h.sumber === 'server') && (
+                      <button className="btn btn-sm" disabled={busy} onClick={() => run('k', async () => {
+                        await simpanPengeluaranKeServer(h.tanggal, {});
+                        hapusPengeluaranManual(h.tanggal);
+                        setKasVersi((v) => v + 1);
+                        setKasInfo('Pengeluaran ' + h.tanggal + ' dikembalikan ke otomatis.');
+                      })}>Reset</button>
                     )}
                   </>
                 )}
