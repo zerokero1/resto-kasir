@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 // - respons yang sudah kedaluwarsa (ada fetch baru di depan) diabaikan,
 //   sehingga ganti tanggal/tab dengan cepat tidak menampilkan data tanggal lama.
 // - hanya re-fetch saat dependency berubah (tidak setiap render).
-export function useSupabaseQuery(fn, deps = []) {
+export function useSupabaseQuery(fn, deps = [], enabled = true) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -13,6 +13,7 @@ export function useSupabaseQuery(fn, deps = []) {
   const seq = useRef(0);
 
   const run = useCallback(async () => {
+    if (!enabled) return;
     const id = ++seq.current;
     setLoading(true);
     setError(null);
@@ -26,9 +27,9 @@ export function useSupabaseQuery(fn, deps = []) {
     } finally {
       if (id === seq.current) setLoading(false);
     }
-  }, deps);
+  }, [...deps, enabled]);
 
-  useEffect(() => { run(); }, [run]);
+  useEffect(() => { if (enabled) run(); }, [run, enabled]);
 
   return { data, error, loading, reload: run };
 }

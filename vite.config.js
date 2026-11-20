@@ -7,7 +7,9 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // Jangan ganti halaman saat transaksi sedang berjalan. Kasir diberi
+      // tombol konfirmasi; keranjang juga sudah dipulihkan dari sessionStorage.
+      registerType: 'prompt',
       manifest: {
         name: 'Resto Kasir - Dayang Resto',
         short_name: 'Resto Kasir',

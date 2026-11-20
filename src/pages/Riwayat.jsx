@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { transaksiTanggal, transaksiRentang } from '../lib/laporanService';
-import { exportTransaksi } from '../lib/excelExport';
+import { exportTransaksi } from '../lib/ekspor';
 import { uang, todayStr, fmtTgl, metodeLabel } from '../lib/format';
 import StrukModal from '../components/Struk';
 import PaymentModal from '../components/Payment';
@@ -26,9 +26,14 @@ export default function Riwayat() {
   const [info, setInfo] = useState('');
 
   const muat = useCallback(async (t = tanggal) => {
-    const d = await transaksiTanggal(t);
-    setRows(d);
-    setTotal(d.reduce((s, p) => s + Number(p.total), 0));
+    try {
+      const d = await transaksiTanggal(t);
+      setRows(d);
+      setTotal(d.reduce((s, p) => s + Number(p.total), 0));
+      setErr('');
+    } catch (e) {
+      setErr('Gagal memuat riwayat: ' + e.message);
+    }
   }, [tanggal]);
 
   useEffect(() => { muat(tanggal); }, [tanggal, muat]);
@@ -36,7 +41,7 @@ export default function Riwayat() {
   useEffect(() => {
     const ch = supabase
       .channel('rc-riwayat-' + tanggal)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'resto_pesanan' }, () => muat())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'resto_pesanan' }, () => muat())
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [tanggal, muat]);

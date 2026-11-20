@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { laporanHarian } from '../lib/laporanService';
-import { exportLaporanHarian } from '../lib/excelExport';
+import { exportLaporanHarian } from '../lib/ekspor';
 import { uang, todayStr, metodeLabel, jamTgl } from '../lib/format';
 import { useSupabaseQuery } from '../lib/useSupabaseQuery';
 import { barisLaporanHarian, cetakWebBt, cetakViaApk, bridgeApkAda, putusWebBt } from '../lib/cetak';

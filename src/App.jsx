@@ -1,5 +1,6 @@
 import { useState, useEffect, Component } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { useRegisterSW } from 'virtual:pwa-register/react';
 import { getProfile, onAuth, loadLogin } from './lib/authService';
 import Login from './pages/Login';
 import Layout from './components/Layout';
@@ -51,6 +52,19 @@ function TidakAda({ judul, pesan }) {
   );
 }
 
+function UpdatePrompt() {
+  const { needRefresh, updateServiceWorker } = useRegisterSW();
+  const [ditunda, setDitunda] = useState(false);
+  if (!needRefresh || ditunda) return null;
+  return (
+    <div className="update-banner" role="status">
+      <span>Versi baru sudah tersedia. Perbarui setelah transaksi selesai.</span>
+      <button className="btn btn-sm" onClick={() => updateServiceWorker(true)}>Perbarui</button>
+      <button className="btn btn-sm btn-ghost" onClick={() => setDitunda(true)}>Nanti</button>
+    </div>
+  );
+}
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [ready, setReady] = useState(false);
@@ -69,6 +83,7 @@ export default function App() {
 
   return (
     <Layout user={user} onLogout={() => setUser(null)}>
+      <UpdatePrompt />
       <ErrorBoundary>
         <Routes>
         <Route

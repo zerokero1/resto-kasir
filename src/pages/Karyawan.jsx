@@ -20,9 +20,12 @@ export default function Karyawan({ user }) {
   const [absen, setAbsen] = useState({ karyawan_id: '', status: 'hadir', menit_lembur: '', catatan: '' });
 
   async function muat() {
-    const { data } = await supabase.from('resto_karyawan').select('*').order('nama').eq('aktif', true);
-    setKaryawan(data || []);
-    setAbsen((a) => ({ ...a, karyawan_id: a.karyawan_id || data?.[0]?.id || '' }));
+    try {
+      const { data, error } = await supabase.from('resto_karyawan').select('*').order('nama').eq('aktif', true);
+      if (error) throw new Error(error.message);
+      setKaryawan(data || []);
+      setAbsen((a) => ({ ...a, karyawan_id: a.karyawan_id || data?.[0]?.id || '' }));
+    } catch (e) { setErr(e.message); }
   }
   useEffect(() => { muat(); }, []);
 
@@ -30,7 +33,8 @@ export default function Karyawan({ user }) {
     if (!nama.trim()) return;
     setErr(''); setBusy(true);
     try {
-      await supabase.from('resto_karyawan').insert({ nama: nama.trim(), telp, jabatan });
+      const { error } = await supabase.from('resto_karyawan').insert({ nama: nama.trim(), telp, jabatan });
+      if (error) throw new Error(error.message);
       setNama(''); setTelp(''); setJabatan('kasir');
       await muat();
       setOk('Karyawan ditambahkan.');
@@ -120,7 +124,7 @@ export default function Karyawan({ user }) {
           <input className="input with-mb" placeholder="Email (untuk login)" value={email} onChange={(e) => setEmail(e.target.value)} />
           <div className="f-row">
             <input className="input" placeholder="Nama tampilan" value={namaK} onChange={(e) => setNamaK(e.target.value)} />
-            <input className="input" placeholder="Sandi" type="text" value={pw} onChange={(e) => setPw(e.target.value)} />
+            <input className="input" placeholder="Sandi" type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} />
           </div>
           {ok && <div className="ok">{ok}</div>}
           {err && <div className="err">{err}</div>}

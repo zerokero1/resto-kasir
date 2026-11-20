@@ -6,14 +6,30 @@ import { uang } from '../lib/format';
 import StrukModal from '../components/Struk';
 import PaymentModal from '../components/Payment';
 
+// Draf keranjang disimpan di sessionStorage (bukan localStorage) supaya tidak
+// menumpuk di perangkat, tapi tetap selamat kalau service worker mengganti halaman.
+const KEY_DRAF = 'pos_draf_keranjang_v1';
+function bacaDraf() {
+  try {
+    const o = JSON.parse(sessionStorage.getItem(KEY_DRAF) || '{}');
+    return {
+      cart: Array.isArray(o.cart)
+        ? o.cart.filter((x) => x && x.produk_id && Number(x.qty) > 0)
+        : [],
+      catatan: String(o.catatan || '')
+    };
+  } catch { return { cart: [], catatan: '' }; }
+}
+
 export default function POS({ user }) {
   const [produk, setProduk] = useState([]);
   const [kelompok, setKelompok] = useState('Semua');
-  const [cart, setCart] = useState([]);
-  const [catatan, setCatatan] = useState('');
+  const [draf] = useState(bacaDraf);
+  const [cart, setCart] = useState(draf.cart);
+  const [catatan, setCatatan] = useState(draf.catatan);
   const [pesanan, setPesanan] = useState(null);
   const [payFor, setPayFor] = useState(null);
-  const [info, setInfo] = useState('');
+  const [info, setInfo] = useState(draf.cart.length ? 'Keranjang yang belum selesai dipulihkan.' : '');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -25,6 +41,10 @@ export default function POS({ user }) {
     }
   }
   useEffect(() => { muat(); }, []);
+
+  useEffect(() => {
+    try { sessionStorage.setItem(KEY_DRAF, JSON.stringify({ cart, catatan })); } catch { /* storage penuh/diblokir */ }
+  }, [cart, catatan]);
 
   const menu = useMemo(() => produk.filter((p) => p.jenis === 'menu'), [produk]);
   const listKelompok = useMemo(() => [...new Set(menu.map((p) => p.kelompok))].concat(KELOMPOK_POS.filter((k) => !menu.some((p) => p.kelompok === k))), [menu]);

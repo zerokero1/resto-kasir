@@ -1,6 +1,13 @@
 import ExcelJS from 'exceljs';
 import { jamTgl } from './format';
 
+const OFFSET_WIB = 7 * 60 * 60 * 1000;
+// 'YYYY-MM-DDTHH:MM' versi WIB, supaya Excel cocok dengan nota/struk
+function waktuWib(ts) {
+  if (!ts) return '';
+  return new Date(new Date(ts).getTime() + OFFSET_WIB).toISOString().slice(0, 16).replace('T', ' ');
+}
+
 function unduh(buffer, nama) {
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const a = document.createElement('a');
@@ -47,7 +54,10 @@ export async function exportRekapHarian(rows, fileName = 'rekap-harian.xlsx') {
     { header: 'Hutang', key: 'hutang', width: 16, style: { numFmt: '#,##0' } },
     { header: 'TOTAL', key: 'total', width: 18, style: { numFmt: '#,##0' } }
   ];
-  for (const r of rows) ws.addRow(r);
+  for (const r of rows) {
+    // Dashboard memakai field `periode`; rekap harian memakai `tanggal`.
+    ws.addRow({ ...r, tanggal: r.tanggal || r.periode || r.key || '' });
+  }
   ws.getRow(1).font = { bold: true };
   const buf = await wb.xlsx.writeBuffer();
   unduh(buf, fileName);
@@ -66,7 +76,7 @@ export async function exportTransaksi(pesanan, fileName = 'transaksi.xlsx') {
   for (const p of pesanan) {
     ws.addRow({
       id: p.id,
-      waktu: p.tanggal?.slice(0, 16).replace('T', ' '),
+      waktu: waktuWib(p.tanggal),
       kasir: p.nama_kasir || '',
       metode: p.metode,
       total: Number(p.total) || 0

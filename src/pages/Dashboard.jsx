@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { rekapPeriode } from '../lib/laporanService';
-import { exportRekapHarian } from '../lib/excelExport';
+import { exportRekapHarian } from '../lib/ekspor';
 import { uang, todayStr } from '../lib/format';
 import { useSupabaseQuery } from '../lib/useSupabaseQuery';
 

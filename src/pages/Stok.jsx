@@ -18,7 +18,11 @@ export default function Stok({ user }) {
   const [busy, setBusy] = useState(false);
 
   async function muat() {
-    try { setBahan(await ambilBahan()); } catch (e) { setErr(e.message); }
+    try {
+      const daftar = await ambilBahan();
+      setBahan(daftar);
+      return daftar;
+    } catch (e) { setErr(e.message); return []; }
   }
   useEffect(() => { muat(); }, []);
 
@@ -34,13 +38,18 @@ export default function Stok({ user }) {
     setErr(''); setOk(''); setBusy(true);
     try {
       const qty = Number(nilai);
-      if (!(qty > 0) && tab !== 'opname') throw new Error('Jumlah harus lebih dari 0.');
+      if (!Number.isFinite(qty)) throw new Error('Jumlah harus berupa angka.');
+      if (tab === 'opname' ? qty < 0 : qty <= 0) {
+        throw new Error(tab === 'opname' ? 'Stok fisik tidak boleh negatif.' : 'Jumlah harus lebih dari 0.');
+      }
       if (tab === 'masuk') await barangMasuk(sel.id, qty, alasan, user.id, tgl);
       if (tab === 'keluar') await barangKeluar(sel.id, qty, alasan, user.id, tgl);
       if (tab === 'opname') await opname(sel.id, qty, user.id, tgl);
       setOk('Tersimpan.');
       setNilai(''); setAlasan('');
-      await muat();
+      const daftar = await muat();
+      const baru = daftar.find((b) => b.id === sel.id);
+      if (baru) setSel(baru);
       setMutasi(await mutasiBahan(sel.id));
     } catch (e) {
       setErr(e.message);

@@ -324,19 +324,40 @@ export async function simpanSplitBayar(pesanan, parts) {
   const asli = await ambilItemPesanan(pesanan.id);
   const mapAsli = {};
   for (const it of asli) mapAsli[it.id] = it;
+  const totalAsli = asli.reduce((s, it) => s + (Number(it.harga) || 0) * (Number(it.qty) || 0), 0);
 
+  // Jangan percaya angka yang dikirim browser. Semua total dihitung ulang dari
+  // item di database + diskon + metode bayar, lalu diverifikasi sama dengan nota.
+  const hitungan = [];
+  let subPecahan = 0;
+  let diskonPecahan = 0;
   for (const part of parts) {
     if (!part.items.length) throw new Error('Ada payer tanpa item.');
+    let sub = 0;
     for (const it of part.items) {
       const src = mapAsli[it.id];
       if (!src) throw new Error('Item tidak dikenal.');
-      if ((Number(it.qty) || 0) <= 0) throw new Error('Qty payer tidak valid.');
-      if ((Number(it.qty) || 0) > (Number(src.qty) || 0)) {
+      const qty = Number(it.qty) || 0;
+      if (qty <= 0) throw new Error('Qty payer tidak valid.');
+      if (qty > (Number(src.qty) || 0)) {
         throw new Error(`Qty ${src.nama} melebihi qty nota (${src.qty}).`);
       }
+      sub += (Number(src.harga) || 0) * qty;
     }
-    if (Number(part.total) < 0) throw new Error('Total payer tidak valid.');
+    const diskon = Math.min(Math.max(Number(part.diskon) || 0, 0), sub);
+    const dasar = Math.max(0, sub - diskon);
+    const total = part.metode === 'debit' ? hitungPajakEdc(dasar) : dasar;
+    if (Math.abs(total - (Number(part.total) || 0)) > 1) {
+      throw new Error('Total payer tidak cocok dengan item & diskonnya. Tutup pembayaran lalu buka lagi.');
+    }
+    subPecahan += sub;
+    diskonPecahan += diskon;
+    hitungan.push({ ...part, sub, diskon, dasar, total });
   }
+  if (Math.abs(subPecahan - totalAsli) > 1) {
+    throw new Error(`Total pecahan (${uang(subPecahan)}) tidak sama dengan nota (${uang(totalAsli)}).`);
+  }
+  if (diskonPecahan > totalAsli + 1) throw new Error('Diskon pecahan melebihi total nota.');
 
   for (const it of asli) {
     const jml = parts.reduce((s, part) => {
@@ -357,13 +378,14 @@ export async function simpanSplitBayar(pesanan, parts) {
     try {
       const idBaru = await idPesananBatch(pesanan, parts.length, tanggal, percobaan === 1);
       for (let i = 0; i < parts.length; i++) {
-        const part = parts[i];
+        const part = hitungan[i];
         const { data: row, error: e1 } = await supabase
           .from('resto_pesanan')
           .insert({
             id: idBaru[i],
             tanggal,
-            total: Number(part.total) || 0,
+            total: part.total,
+            diskon: part.diskon,
             bayar: Number(part.bayar) || 0,
             kembalian: Number(part.kembalian) || 0,
             metode: part.metode,

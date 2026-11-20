@@ -62,6 +62,10 @@ data tetap aman, tidak ada yang hilang.
    - **Simpan Saja** → nota dibuat dengan status **Belum Bayar** (masuk ke halaman ⏳ Belum Bayar).
    - **💳 Bayar / Split Bill** → langsung membuka layar pembayaran.
 
+> **Keranjang aman kalau tertutup.** Item dan catatan yang belum dibayar disimpan
+> sementara di perangkat. Buka aplikasi lagi → keranjang otomatis muncul dengan pesan
+> "Keranjang yang belum selesai dipulihkan." Draf ini hilang setelah nota disimpan.
+
 ### 3.2 Menerima pembayaran
 Di layar **Terima Pembayaran**:
 
@@ -92,8 +96,16 @@ Di layar **Terima Pembayaran**:
 4. Pilih metode tiap orang (Tunai / EDC / QRIS) dan isi nominalnya.
 5. Tekan **Simpan jadi N nota baru**.
 
-Catatan: nota asal diganti menjadi beberapa nota baru bernomor `...-S2`, `...-S3`, dst.
-Stok bahan **tidak** dipotong dua kali. Setelah tersimpan, cetak struk tiap nota dari Riwayat.
+**Pemeriksaan otomatis:** tombol Simpan hanya aktif bila **semua item habis dibagi** dan
+jumlah pecahan sama dengan nota asli. Bila ada yang kurang, muncul pesan merah
+"Total pecahan … tidak sama dengan nota …". Diskon yang diisi di **Bayar biasa** ikut
+dibagi proporsional ke tiap payer (sisa pembulatan jatuh ke payer terakhir), dan total
+dihitung ulang dari item di database sebelum disimpan — angka yang diketik kasir tidak
+dipercaya begitu saja.
+
+Catatan: nota asal diganti menjadi beberapa nota baru bernomor `TRX-…` urut (bukan
+`...-S2`). Stok bahan **tidak** dipotong dua kali. Setelah tersimpan, cetak struk tiap
+nota dari Riwayat.
 
 ### 3.4 Cetak struk
 - Setelah pembayaran, struk tampil otomatis. Tekan tombol cetak untuk printer Bluetooth.
@@ -309,7 +321,11 @@ Laporan satu hari yang siap dicetak:
 ## 13. Kalau ada masalah
 
 ### Aplikasi menampilkan versi lama / halaman kosong / tombol baru tidak muncul
-Aplikasi menyimpan versi lama di cache (service worker). Lakukan salah satu:
+Bila ada versi baru, muncul pesan **"Versi baru sudah tersedia"** di atas halaman.
+Aplikasi **tidak lagi mengganti halaman dengan sendirian** saat transaksi berjalan.
+Tekan **Perbarui** setelah transaksi selesai, atau **Nanti** untuk menundanya.
+
+Bila pesan itu tidak muncul dan tampilan tetap lama, cache perlu dibersihkan:
 
 **Cara mudah**
 1. Tutup aplikasi sepenuhnya (bukan hanya pindah ke belakang).
@@ -399,6 +415,10 @@ Bila PWA masih memuat versi lama, lakukan pembersihan cache di bagian 13.
   - fungsi `ganti_pin_admin(pin_lama, pin_baru)`,
   - PIN awal `1234`.
 
+- `supabase/migrasi-pengeluaran-kas.sql` — hanya perlu dijalankan bila tabel
+  `resto_pengeluaran` belum ada (tombol Simpan Laporan Kas akan memberi pesan ini).
+  Database produksi saat ini sudah punya tabel tersebut.
+
 Jalankan di **Supabase → SQL Editor → New query → Run**. Setelah itu uji:
 
 ```sql
@@ -420,8 +440,13 @@ select public.cek_pin_admin('0000');  -- harus false
 - PostgREST membatasi **1.000 baris per permintaan**; laporan memakai paginasi
   (`ambilSemua`) agar rekap >1.000 nota tidak terpotong.
 - Tanggal disimpan UTC, ditampilkan WIB (offset +7 jam).
-- Diskon mengurangi dasar sebelum pajak 3% EDC.
+- Diskon mengurangi dasar sebelum pajak 3% EDC, termasuk pada split bill.
 - Edit transaksi menyesuaikan stok dari selisih qty item.
+- Laporan memuat query per tab yang dibuka (tidak semua sekaligus).
+- ExcelJS dimuat terpisah hanya saat tombol **⬇️ Excel** ditekan.
+- PWA memakai mode prompt: tidak reload otomatis saat ada versi baru.
+- Split bill menghitung ulang total dari item di database dan menolak pecahan yang
+  tidak cocok dengan nota asli.
 
 ### Backup
 - Supabase → **Database → Backups** (sesuai paket) atau ekspor tabel lewat SQL.

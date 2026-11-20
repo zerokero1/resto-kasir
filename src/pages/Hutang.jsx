@@ -5,6 +5,7 @@ import StrukModal from '../components/Struk';
 import PaymentModal from '../components/Payment';
 import TambahItemModal from '../components/TambahItem';
 import { simpanSplitBayar, batalkanPesanan } from '../lib/pesananService';
+import { ambilSemua } from '../lib/laporanService';
 
 export default function Hutang() {
   const [rows, setRows] = useState([]);
@@ -21,20 +22,20 @@ export default function Hutang() {
 
   const muat = useCallback(async () => {
     try {
-      const { data, error } = await supabase
+      // PostgREST membatasi 1.000 baris/permintaan — hutang wajib diambil semua.
+      const data = await ambilSemua(() => supabase
         .from('resto_pesanan')
         .select('*')
         .eq('lunas', false)
-        .order('tanggal', { ascending: false });
-      if (error) {
-        if (/(column|does not exist|lunas)/i.test(error.message)) setNeedMigrasi(true);
-        else setErr(error.message);
-        return;
-      }
+        .order('tanggal', { ascending: false }));
       setNeedMigrasi(false);
-      setRows(data || []);
-      setTotal((data || []).reduce((s, p) => s + Number(p.total), 0));
-    } catch (e) { setErr(e.message); }
+      setRows(data);
+      setTotal(data.reduce((s, p) => s + Number(p.total), 0));
+      setErr('');
+    } catch (e) {
+      if (/(column|does not exist|lunas)/i.test(e.message)) setNeedMigrasi(true);
+      else setErr(e.message);
+    }
   }, []);
 
   useEffect(() => { muat(); }, [muat]);

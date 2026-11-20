@@ -51,6 +51,22 @@ body {
 .content { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 12px; }
 .page { max-width: 900px; margin: 0 auto; }
 
+/* ---------- update PWA ---------- */
+.update-banner {
+  max-width: 900px;
+  margin: 0 auto 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #b7e0cf;
+  border-radius: 12px;
+  background: #eef8f3;
+  font-size: 13px;
+}
+.update-banner span { flex: 1 1 180px; }
+
 /* ---------- bottombar ---------- */
 .bottombar {
   display: flex;

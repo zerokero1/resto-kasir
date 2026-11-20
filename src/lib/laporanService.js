@@ -16,7 +16,7 @@ export async function laporanStok() {
  * diambil per halaman. Tanpa ini, rekap >1.000 nota (mis. 30 hari) terpotong
  * diam-diam dan total pemasukan jadi lebih kecil dari seharusnya.
  */
-async function ambilSemua(buatQuery, ukuran = 1000) {
+export async function ambilSemua(buatQuery, ukuran = 1000) {
   const hasil = [];
   for (let awal = 0; ; awal += ukuran) {
     const { data, error } = await buatQuery().range(awal, awal + ukuran - 1);
@@ -237,12 +237,21 @@ export function hapusPengeluaranManual(tanggal) {
   return obj;
 }
 
+function pesanTabelPengeluaran(e) {
+  const s = String(e || '');
+  if (/Could not find the table|relation .* does not exist|schema cache/i.test(s)) {
+    return 'Tabel resto_pengeluaran belum ada. Jalankan supabase/migrasi-pengeluaran-kas.sql di SQL Editor Supabase.';
+  }
+  return s;
+}
+
 /**
  * Simpan pengeluaran Laporan Kas ke Supabase supaya terlihat di semua perangkat
  * dan tidak hilang saat login ulang / cache dibersihkan.
  * Baris lama bertanda MANUAL_KAS untuk tanggal itu diganti, data impor lain
  * (dari nota/Excel) tidak disentuh.
  */
+
 export async function simpanPengeluaranKeServer(tanggal, peng) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(tanggal || ''))) {
     throw new Error('Tanggal pengeluaran tidak valid.');
@@ -259,7 +268,7 @@ export async function simpanPengeluaranKeServer(tanggal, peng) {
     .delete()
     .eq('tanggal', tanggal)
     .eq('catatan', CATATAN_MANUAL_KAS);
-  if (hapus.error) throw new Error(hapus.error.message);
+  if (hapus.error) throw new Error(pesanTabelPengeluaran(hapus.error.message));
 
   const baris = DEPT_PENGELUARAN
     .filter((d) => nilai[d] > 0)
@@ -274,7 +283,7 @@ export async function simpanPengeluaranKeServer(tanggal, peng) {
 
   if (baris.length) {
     const { error } = await supabase.from('resto_pengeluaran').insert(baris);
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(pesanTabelPengeluaran(error.message));
   }
   return baris.length;
 }
@@ -304,7 +313,11 @@ export async function laporanKas(dari, sampai) {
   // Pengeluaran dari tabel resto_pengeluaran (bila sudah dibuat & diisi).
   let pengDb = [];
   try {
-    const r = await supabase.from('resto_pengeluaran').select('tanggal, departemen, nominal, catatan');
+    const r = await supabase
+      .from('resto_pengeluaran')
+      .select('tanggal, departemen, nominal, catatan')
+      .gte('tanggal', dari)
+      .lte('tanggal', sampai);
     if (r.error && /Could not find the table/.test(r.error.message)) pengDb = [];
     else if (r.error) throw new Error(r.error.message);
     else pengDb = r.data || [];

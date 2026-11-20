@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { laporanStok, rekapHarian, transaksiTanggal, absensiRentang, transaksiRentang, mutasiStokBahan, agregasiMutasi, pemakaianTanggal, pengeluaranStokHarian, pendapatanPerBagian, laporanKas, bacaPengeluaranManual, simpanPengeluaranManual, hapusPengeluaranManual, simpanPengeluaranKeServer, DEPT_PENGELUARAN } from '../lib/laporanService';
-import { exportLaporanStok, exportRekapHarian, exportTransaksi, exportAbsensi, exportMutasiStok, exportPemakaian, exportPengeluaranStok, exportPendapatanBagian, exportLaporanKas } from '../lib/excelExport';
+import { exportLaporanStok, exportRekapHarian, exportTransaksi, exportAbsensi, exportMutasiStok, exportPemakaian, exportPengeluaranStok, exportPendapatanBagian, exportLaporanKas } from '../lib/ekspor';
 import { uang, todayStr, fmtTgl, metodeLabel } from '../lib/format';
 import { useSupabaseQuery } from '../lib/useSupabaseQuery';
 
@@ -20,17 +20,19 @@ export default function Laporan() {
   const [mode, setMode] = useState('harian');
   const [openId, setOpenId] = useState(null);
 
-  const stokQ = useSupabaseQuery(laporanStok);
-  const rekapQ = useSupabaseQuery(() => rekapHarian(dari, sampai), [dari, sampai]);
-  const transQ = useSupabaseQuery(() => transaksiTanggal(tgl), [tgl]);
-  const absQ = useSupabaseQuery(() => absensiRentang(dari, sampai), [dari, sampai]);
-  const mutQ = useSupabaseQuery(() => mutasiStokBahan(dari, sampai), [dari, sampai]);
-  const pemQ = useSupabaseQuery(() => pemakaianTanggal(tgl), [tgl]);
-  const pengQ = useSupabaseQuery(() => pengeluaranStokHarian(dari, sampai), [dari, sampai]);
-  const bagQ = useSupabaseQuery(() => pendapatanPerBagian(dari, sampai), [dari, sampai]);
+  // Query hanya dijalankan saat tabnya dibuka. Sebelumnya semua tab di-fetch
+  // saat halaman Laporan dibuka (10 query berat sekaligus).
+  const stokQ = useSupabaseQuery(laporanStok, [], tab === 'Stok');
+  const rekapQ = useSupabaseQuery(() => rekapHarian(dari, sampai), [dari, sampai], tab === 'Rekap Harian');
+  const transQ = useSupabaseQuery(() => transaksiTanggal(tgl), [tgl], tab === 'Transaksi');
+  const absQ = useSupabaseQuery(() => absensiRentang(dari, sampai), [dari, sampai], tab === 'Absensi');
+  const mutQ = useSupabaseQuery(() => mutasiStokBahan(dari, sampai), [dari, sampai], tab === 'Stok Masuk/Keluar');
+  const pemQ = useSupabaseQuery(() => pemakaianTanggal(tgl), [tgl], tab === 'Pemakaian Stok');
+  const pengQ = useSupabaseQuery(() => pengeluaranStokHarian(dari, sampai), [dari, sampai], tab === 'Pengeluaran Stok');
+  const bagQ = useSupabaseQuery(() => pendapatanPerBagian(dari, sampai), [dari, sampai], tab === 'Pendapatan per Bagian');
   const [kasVersi, setKasVersi] = useState(0);
   const [kasInfo, setKasInfo] = useState('');
-  const kasQ = useSupabaseQuery(() => laporanKas(dari, sampai), [dari, sampai, kasVersi]);
+  const kasQ = useSupabaseQuery(() => laporanKas(dari, sampai), [dari, sampai, kasVersi], tab === 'Laporan Kas');
 
   const kasR = useMemo(() => {
     const manual = bacaPengeluaranManual();
@@ -41,12 +43,13 @@ export default function Laporan() {
       if (h.pengDb) {
         peng = { Kitchen: 0, Coffee: 0, Bar: 0, Operasional: 0, ...h.pengDb };
         sumber = 'database';
+      } else if (h.pengManualDb) {
+        // Data yang sudah tersimpan di server lebih utama daripada draf lokal.
+        peng = { ...peng, ...h.pengManualDb };
+        sumber = 'server';
       } else if (m) {
         peng = { ...peng, ...m };
         sumber = 'manual';
-      } else if (h.pengManualDb) {
-        peng = { ...peng, ...h.pengManualDb };
-        sumber = 'server';
       }
       const totalPeng = Object.values(peng).reduce((s, v) => s + (Number(v) || 0), 0);
       return { ...h, peng, totalPeng, sumber };

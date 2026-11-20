@@ -123,7 +123,10 @@ function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy, mulaiSplit }) {
     setStep(n);
   }
 
-  const payer = [];
+  // Kumpulkan subtotal dulu, baru bagi diskon secara proporsional. Sisa
+  // pembulatan jatuh ke payer terakhir supaya jumlah diskon tetap sama persis
+  // dengan diskon nota (tidak ada uang "hilang" karena dibulatkan tiap payer).
+  const bayarPayer = [];
   for (let i = 0; i < jumlahPayer; i++) {
     const m = cara[i] || 'tunai';
     let sub = 0;
@@ -135,10 +138,20 @@ function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy, mulaiSplit }) {
         itemsPayer.push({ id: it.id, qty: q });
       }
     }
-    const { total: tot, pajak: pjk } = hitungBagian(sub, m);
-    const b = Number(cara['b' + i]) || 0;
-    payer.push({ i, metode: m, subtotal: sub, pajak: pjk, total: tot, bayar: b, items: itemsPayer });
+    bayarPayer.push({ i, metode: m, subtotal: sub, items: itemsPayer, bayar: Number(cara['b' + i]) || 0 });
   }
+  const subSplit = bayarPayer.reduce((s, x) => s + x.subtotal, 0);
+  let sisaDiskon = diskonNum;
+  const payer = bayarPayer.map((x, idx) => {
+    const porsi = subSplit > 0 ? x.subtotal / subSplit : 0;
+    const potongan = idx === bayarPayer.length - 1
+      ? Math.max(0, sisaDiskon)
+      : Math.min(Math.round(diskonNum * porsi), Math.max(0, sisaDiskon));
+    sisaDiskon -= potongan;
+    const dasarPayer = Math.max(0, x.subtotal - potongan);
+    const { total: tot, pajak: pjk } = hitungBagian(dasarPayer, x.metode);
+    return { ...x, diskon: potongan, dasar: dasarPayer, pajak: pjk, total: tot };
+  });
 
   const totalPajakSplit = payer.reduce((s, x) => s + x.pajak, 0);
   const totalAkhirSplit = payer.reduce((s, x) => s + x.total, 0);
@@ -154,7 +167,9 @@ function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy, mulaiSplit }) {
   const stepSiap = payer[step] && payer[step].items.length > 0;
   const kurangBayar = payer.some((x) => x.bayar > 0 && x.bayar < x.total);
   const terakhir = step === jumlahPayer - 1;
-  const splitSiap = itemsSiap && semuaTerbagi && jumlahPayer > 0 && !kurangBayar;
+  // Total pecahan wajib sama dengan nota asli sebelum bisa disimpan.
+  const subCocok = semuaTerbagi && Math.abs(subSplit - totalMenu) < 1;
+  const splitSiap = itemsSiap && semuaTerbagi && subCocok && jumlahPayer > 0 && !kurangBayar;
 
   function kirim(e) {
     e.preventDefault();
@@ -168,6 +183,10 @@ function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy, mulaiSplit }) {
       payer.map((x) => ({
         items: x.items,
         metode: x.metode,
+        subtotal: x.subtotal,
+        diskon: x.diskon,
+        dasar: x.dasar,
+        pajak: x.pajak,
         total: x.total,
         bayar: x.bayar > 0 ? x.bayar : x.total,
         kembalian: x.metode === 'tunai' ? Math.max(0, x.bayar - x.total) : 0
@@ -415,9 +434,12 @@ function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy, mulaiSplit }) {
                 )}
 
                 <div className="total-line">Total semua orang: <b>{uang(totalAkhirSplit)}</b></div>
-                {totalAkhirSplit !== totalMenu + totalPajakSplit && (
+                {diskonNum > 0 && (
+                  <div className="muted small">Diskon {uang(diskonNum)} dibagi proporsional ke tiap payer.</div>
+                )}
+                {!subCocok && (
                   <div className="err">
-                    Total yang dibagi ({uang(totalAkhirSplit)}) tidak sama dengan nota + tax ({uang(totalMenu + totalPajakSplit)}).
+                    Total pecahan ({uang(subSplit)}) tidak sama dengan nota ({uang(totalMenu)}). Periksa pembagian item.
                   </div>
                 )}
                 {!semuaTerbagi && (
@@ -441,9 +463,11 @@ function PaymentModal({ p, onClose, onBayar, onBayarSplit, busy, mulaiSplit }) {
                 )}
                 {itemsSiap && !busy && terakhir && !splitSiap && (
                   <div className="err">
-                    {!semuaTerbagi
-                      ? 'Masih ada ' + sisaBelumDibagi + ' item belum dibagi — kembali ke P1 untuk membagikannya.'
-                      : kurangBayar ? 'Ada nominal yang kurang dari totalnya.' : ''}
+                    {!subCocok
+                      ? 'Jumlah pecahan belum sama dengan nota — periksa pembagian item.'
+                      : !semuaTerbagi
+                        ? 'Masih ada ' + sisaBelumDibagi + ' item belum dibagi — kembali ke P1 untuk membagikannya.'
+                        : kurangBayar ? 'Ada nominal yang kurang dari totalnya.' : ''}
                   </div>
                 )}
                 <p className="muted small" style={{ marginTop: 8 }}>
