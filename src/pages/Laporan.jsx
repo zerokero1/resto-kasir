@@ -38,7 +38,9 @@ export default function Laporan() {
     const manual = bacaPengeluaranManual();
     return (kasQ.data || []).map((h) => {
       const m = manual[h.tanggal];
-      let peng = { Kitchen: h.pengeluaran, Coffee: 0, Bar: 0, Operasional: 0 };
+      let peng = h.pengAutoDept
+        ? { ...h.pengAutoDept }
+        : { Kitchen: h.pengeluaran, Coffee: 0, Bar: 0, Operasional: 0 };
       let sumber = 'auto';
       if (h.pengDb) {
         peng = { Kitchen: 0, Coffee: 0, Bar: 0, Operasional: 0, ...h.pengDb };

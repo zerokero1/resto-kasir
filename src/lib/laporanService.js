@@ -194,7 +194,9 @@ export async function pendapatanPerBagian(dari, sampai) {
 // Smoothie Bowl masuk Kitchen, dan kopi/matcha/tea masuk Coffee.
 const KELOMPOK_DEPT_LAPORAN = {
   'Breakfast & Brunch': 'Kitchen', 'Burger & Sandwich': 'Kitchen', 'Asian & Indonesian': 'Kitchen',
-  'Snack & Appetizer': 'Kitchen', 'Croissant': 'Kitchen', 'Smoothie Bowl': 'Kitchen', 'Extra': 'Kitchen',
+  // Egg Croissant sengaja tetap di Breakfast & Brunch → Kitchen.
+  'Snack & Appetizer': 'Kitchen', 'Smoothie Bowl': 'Kitchen', 'Extra': 'Kitchen',
+  'Croissant': 'Coffee', 'Coffee': 'Coffee',
   'Espresso': 'Coffee', 'Milk Coffee': 'Coffee', 'Flavored Latte': 'Coffee', 'Coffee + Chocolate': 'Coffee',
   'Matcha': 'Coffee', 'Tea': 'Coffee',
   'Juice': 'Bar', 'Smoothies': 'Bar', 'Milkshake': 'Bar', 'Minuman': 'Bar', 'Mineral Water': 'Bar'
@@ -302,10 +304,10 @@ export async function laporanKas(dari, sampai) {
     transaksiRentang(dari, sampai),
     supabase
       .from('resto_barang_masuk')
-      .select('tanggal, catatan')
+      .select('tanggal, catatan, bahan_id')
       .gte('tanggal', a.dari)
       .lt('tanggal', b.sampai),
-    supabase.from('resto_produk').select('id,kelompok').eq('jenis', 'menu')
+    supabase.from('resto_produk').select('id,kelompok,nama,jenis')
   ]);
   if (msk.error) throw new Error(msk.error.message);
   if (prod.error) throw new Error(prod.error.message);
@@ -338,15 +340,27 @@ export async function laporanKas(dari, sampai) {
   }
 
   const pmap = {};
-  for (const p of prod.data || []) pmap[p.id] = p.kelompok;
+  const namaMap = {};
+  for (const p of prod.data || []) {
+    pmap[p.id] = p.kelompok;
+    namaMap[p.id] = p.nama;
+  }
 
   const kosong = () => ({ rev: 0, cash: 0, edc: 0, qris: 0 });
   const perHari = {};
   const pengeluaran = {};
+  const pengAutoDept = {};
   for (const m of msk.data || []) {
     const hari = tglWib(m.tanggal);
     const h = String(m.catatan || '').match(/Rp([\d.]+)/);
-    pengeluaran[hari] = (pengeluaran[hari] || 0) + (h ? Number(h[1].replace(/\./g, '')) || 0 : 0);
+    const nominal = h ? Number(h[1].replace(/\./g, '')) || 0 : 0;
+    pengeluaran[hari] = (pengeluaran[hari] || 0) + nominal;
+    // Belanja bahan croissant dibebankan ke Coffee. Deteksi dari nama bahan
+    // maupun catatan, supaya tetap benar walau catatannya umum.
+    const teks = String(m.catatan || '') + ' ' + (namaMap[m.bahan_id] || '');
+    const dept = /croissant/i.test(teks) ? 'Coffee' : 'Kitchen';
+    pengAutoDept[hari] ??= { Kitchen: 0, Coffee: 0, Bar: 0, Operasional: 0 };
+    pengAutoDept[hari][dept] += nominal;
   }
 
   function baruHari(hari) {
@@ -356,6 +370,7 @@ export async function laporanKas(dari, sampai) {
       baris: { Kitchen: kosong(), Coffee: kosong(), Bar: kosong() },
       tanpa: 0,
       pengeluaran: pengeluaran[hari] || 0,
+      pengAutoDept: pengAutoDept[hari] || null,
       pengDb: pengDbDept[hari] || null,
       pengManualDb: pengManualDept[hari] || null,
       pengeluaranDb: pengDbDept[hari] ? Object.values(pengDbDept[hari]).reduce((s, v) => s + (v || 0), 0) : 0

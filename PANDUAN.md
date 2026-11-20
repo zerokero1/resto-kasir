@@ -245,6 +245,13 @@ Setiap tab punya tombol **⬇️ Excel** untuk mengunduh data.
 
 Departemen: **Kitchen**, **Coffee**, **Bar**, dan **Operasional** (khusus pengeluaran).
 
+> **Croissant masuk Coffee.** Seluruh menu yang dulu ber-kelompok **Croissant**
+> (Almond/Plain/Chocolate Croissant, Brownies Cake, Carrot Cake, Plain Bowl,
+> Plain Chocolate, Crookie) kini berada di kelompok **Coffee** di kasir dan omzetnya
+> dihitung di departemen **Coffee**. **Egg Croissant** tetap di
+> **Breakfast & Brunch → Kitchen**. Belanja bahan bernama croissant (atau dengan
+> catatan "croissant") juga dibebankan ke **Coffee** pada pengeluaran otomatis.
+
 | Kolom | Arti |
 |---|---|
 | **Revenue** | Subtotal item yang terjual (sebelum pajak) |
