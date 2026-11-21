@@ -11,16 +11,39 @@ function pesanTabel(e) {
   return s;
 }
 
-/** Ambil seluruh catatan supplier (terbaru dulu). Dipakai halaman Supplier. */
+/**
+ * Ambil semua catatan supplier (terbaru dulu). Dipakai halaman Supplier.
+ * Memakai pagination karena PostgREST membatasi 1.000 baris per permintaan.
+ */
 export async function ambilPengeluaranSupplier() {
-  const { data, error } = await supabase
-    .from(TABEL)
-    .select('*')
-    .order('tanggal', { ascending: false })
-    .order('id', { ascending: false })
-    .limit(1000);
-  if (error) throw new Error(pesanTabel(error.message));
-  return data || [];
+  const rows = await ambilPengeluaranSupplierLaporan();
+  return rows.reverse();
+}
+
+/**
+ * Ambil semua baris untuk laporan/unduhan, opsional dalam rentang tanggal.
+ * PostgREST membatasi 1.000 baris per request, jadi diambil per halaman.
+ */
+export async function ambilPengeluaranSupplierLaporan(dari, sampai) {
+  const hasil = [];
+  const ukuran = 1000;
+  let offset = 0;
+  for (;;) {
+    let q = supabase
+      .from(TABEL)
+      .select('*')
+      .order('tanggal', { ascending: true })
+      .order('id', { ascending: true })
+      .range(offset, offset + ukuran - 1);
+    if (dari) q = q.gte('tanggal', dari);
+    if (sampai) q = q.lte('tanggal', sampai);
+    const { data, error } = await q;
+    if (error) throw new Error(pesanTabel(error.message));
+    hasil.push(...(data || []));
+    if (!data || data.length < ukuran) break;
+    offset += ukuran;
+  }
+  return hasil;
 }
 
 /** Ambil rentang tanggal — dipakai Laporan Kas lewat laporanService. */

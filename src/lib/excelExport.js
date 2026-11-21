@@ -274,6 +274,54 @@ export async function exportPengeluaranStok(rows, fileName = 'pengeluaran-stok.x
   unduh(buf, fileName);
 }
 
+/** Laporan pengeluaran supplier: rincian per item + total & ringkasan departemen. */
+export async function exportPengeluaranSupplier(rows, fileName = 'laporan-supplier.xlsx') {
+  const wb = bukaBuku();
+  const ws = wb.addWorksheet('Supplier');
+  ws.columns = [
+    { header: 'Tanggal', key: 'tanggal', width: 14 },
+    { header: 'Supplier', key: 'supplier', width: 26 },
+    { header: 'Departemen', key: 'departemen', width: 14 },
+    { header: 'Nama Barang/Jasa', key: 'nama', width: 30 },
+    { header: 'Qty', key: 'qty', width: 14 },
+    { header: 'Nominal (Rp)', key: 'nominal', width: 16, style: { numFmt: '#,##0' } },
+    { header: 'Catatan / No Nota', key: 'catatan', width: 30 }
+  ];
+
+  const daftar = rows || [];
+  let total = 0;
+  const perDept = { Kitchen: 0, Coffee: 0, Bar: 0, Operasional: 0 };
+  for (const r of daftar) {
+    const n = Number(r.nominal) || 0;
+    total += n;
+    if (Object.prototype.hasOwnProperty.call(perDept, r.departemen)) perDept[r.departemen] += n;
+    ws.addRow({
+      tanggal: r.tanggal || '',
+      supplier: r.supplier || '',
+      departemen: r.departemen || '',
+      nama: r.nama || '',
+      qty: r.qty || '',
+      nominal: n,
+      catatan: r.catatan || ''
+    });
+  }
+  ws.getRow(1).font = { bold: true };
+  if (daftar.length) ws.autoFilter = { from: 'A1', to: `G${daftar.length + 1}` };
+
+  const barisTotal = ws.addRow({ supplier: 'TOTAL', nominal: total });
+  barisTotal.font = { bold: true };
+
+  ws.addRow({});
+  const ringkas = ws.addRow({ supplier: 'Ringkasan per Departemen' });
+  ringkas.font = { bold: true };
+  for (const [dept, jumlah] of Object.entries(perDept)) {
+    ws.addRow({ supplier: dept, nominal: jumlah });
+  }
+
+  const buf = await wb.xlsx.writeBuffer();
+  unduh(buf, fileName);
+}
+
 // data: hasil laporanKas() — tabel persis template Excel (per hari + Deskripsi + TOTAL)
 export async function exportLaporanKas(data, fileName = 'laporan-kas.xlsx') {
   const wb = bukaBuku();

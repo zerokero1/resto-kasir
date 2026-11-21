@@ -14,4 +14,5 @@ export async function exportPemakaian(...a) { return (await muat()).exportPemaka
 export async function exportPengeluaranStok(...a) { return (await muat()).exportPengeluaranStok(...a); }
 export async function exportPendapatanBagian(...a) { return (await muat()).exportPendapatanBagian(...a); }
 export async function exportLaporanKas(...a) { return (await muat()).exportLaporanKas(...a); }
+export async function exportPengeluaranSupplier(...a) { return (await muat()).exportPengeluaranSupplier(...a); }
 export async function exportLaporanHarian(...a) { return (await muat()).exportLaporanHarian(...a); }

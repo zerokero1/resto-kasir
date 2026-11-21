@@ -235,6 +235,17 @@ Halaman ini dipakai untuk **mencatat uang yang dibayarkan ke supplier/toko**.
 4. Baris bisa diubah lewat tombol **Ubah** atau dihapus lewat **Hapus**.
 5. Ringkasan di bawah halaman menampilkan total per departemen dan total keseluruhan.
 
+**Mendownload laporan**
+
+- Di bagian **Riwayat Pengeluaran Supplier**, isi kolom **Dari** dan/atau **Sampai**
+  bila ingin membatasi rentang tanggal (kosongkan keduanya untuk semua data).
+- Tekan **⬇️ Download Excel**. File `.xlsx` berisi rincian tanggal, supplier,
+  departemen, nama barang/jasa, qty, nominal, dan catatan/no nota, ditambah
+  baris **TOTAL** serta ringkasan per departemen.
+- Daftar dan ringkasan di layar juga mengikuti rentang tanggal yang dipilih.
+- Unduhan mengambil seluruh data dari server (pagination), jadi tidak terpotong
+  1.000 baris seperti batas bawaan Supabase.
+
 > Nominal supplier **otomatis masuk ke Laporan Kas** sebagai pengeluaran tambahan
 > sesuai departemen, dan tidak ikut dihapus tombol **Reset/Simpan** di halaman itu.
 > Data disimpan di tabel terpisah (`resto_pengeluaran_supplier`) supaya tidak dobel

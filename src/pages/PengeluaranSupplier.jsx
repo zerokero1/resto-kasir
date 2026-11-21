@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ambilPengeluaranSupplier, tambahPengeluaranSupplier,
-  ubahPengeluaranSupplier, hapusPengeluaranSupplier
+  ambilPengeluaranSupplier, ambilPengeluaranSupplierLaporan,
+  tambahPengeluaranSupplier, ubahPengeluaranSupplier, hapusPengeluaranSupplier
 } from '../lib/supplierService';
+import { exportPengeluaranSupplier } from '../lib/ekspor';
 import { DEPT_PENGELUARAN } from '../lib/laporanService';
 import { todayStr, uang } from '../lib/format';
 
@@ -19,6 +20,10 @@ export default function PengeluaranSupplier({ user }) {
   const [info, setInfo] = useState('');
   const [busy, setBusy] = useState(false);
   const [memuat, setMemuat] = useState(true);
+  const [dari, setDari] = useState('');
+  const [sampai, setSampai] = useState('');
+  const [unduhBusy, setUnduhBusy] = useState(false);
+  const [unduhPesan, setUnduhPesan] = useState('');
 
   async function muat() {
     setMemuat(true); setErr('');
@@ -32,16 +37,20 @@ export default function PengeluaranSupplier({ user }) {
   }
   useEffect(() => { muat(); }, []);
 
+  const terfilter = useMemo(() => daftar.filter((x) =>
+    (!dari || x.tanggal >= dari) && (!sampai || x.tanggal <= sampai)
+  ), [daftar, dari, sampai]);
+
   const ringkas = useMemo(() => {
     const t = { total: 0 };
     for (const d of DEPT_PENGELUARAN) t[d] = 0;
-    for (const x of daftar) {
+    for (const x of terfilter) {
       const n = Number(x.nominal) || 0;
       t.total += n;
       if (DEPT_PENGELUARAN.includes(x.departemen)) t[x.departemen] += n;
     }
     return t;
-  }, [daftar]);
+  }, [terfilter]);
 
   function atur(k, v) { setForm((f) => ({ ...f, [k]: v })); }
 
@@ -93,6 +102,26 @@ export default function PengeluaranSupplier({ user }) {
       setErr(e.message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function unduhLaporan() {
+    setErr(''); setUnduhPesan(''); setUnduhBusy(true);
+    try {
+      // Ambil ulang dari server (sudah pagination) supaya unduhan tidak
+      // terbatasi 1.000 baris atau berisi data yang sedang kedaluwarsa.
+      const rows = await ambilPengeluaranSupplierLaporan(dari, sampai);
+      if (!rows.length) {
+        setUnduhPesan('Tidak ada catatan pada rentang ini.');
+        return;
+      }
+      const nama = `laporan-supplier${dari ? `-${dari}` : ''}${sampai ? `-${sampai}` : ''}.xlsx`;
+      await exportPengeluaranSupplier(rows, nama);
+      setUnduhPesan(`${rows.length} catatan berhasil diunduh.`);
+    } catch (e) {
+      setUnduhPesan(`Gagal mengunduh: ${e.message}`);
+    } finally {
+      setUnduhBusy(false);
     }
   }
 
@@ -157,13 +186,30 @@ export default function PengeluaranSupplier({ user }) {
           <span className="k-head">Riwayat Pengeluaran Supplier</span>
           <button className="btn btn-sm" disabled={busy} onClick={muat}>↻ Muat ulang</button>
         </div>
+        <div className="f-row">
+          <input className="input" type="date" aria-label="Dari tanggal" value={dari}
+            style={{ width: 'auto', flex: 1, minWidth: 140 }}
+            onChange={(e) => { setDari(e.target.value); setUnduhPesan(''); }} />
+          <span className="muted small">s/d</span>
+          <input className="input" type="date" aria-label="Sampai tanggal" value={sampai}
+            style={{ width: 'auto', flex: 1, minWidth: 140 }}
+            onChange={(e) => { setSampai(e.target.value); setUnduhPesan(''); }} />
+          <button className="btn btn-sm" disabled={unduhBusy || memuat} onClick={unduhLaporan}>
+            {unduhBusy ? 'Mengunduh…' : '⬇️ Download Excel'}
+          </button>
+        </div>
+        {unduhPesan && <p className="muted small" style={{ marginTop: 0 }}>{unduhPesan}</p>}
         <p className="muted small" style={{ marginTop: 0 }}>
           {DEPT_PENGELUARAN.map((d) => `${d} ${uang(ringkas[d])}`).join(' • ')}<br />
-          <b>Total {uang(ringkas.total)}</b> ({daftar.length} catatan)
+          <b>Total {uang(ringkas.total)}</b> ({terfilter.length} catatan)
         </p>
         {memuat && <p className="muted">Memuat…</p>}
-        {!memuat && daftar.length === 0 && <p className="muted">Belum ada pengeluaran supplier.</p>}
-        {daftar.map((x) => (
+        {!memuat && terfilter.length === 0 && (
+          <p className="muted">
+            {daftar.length === 0 ? 'Belum ada pengeluaran supplier.' : 'Tidak ada catatan pada rentang ini.'}
+          </p>
+        )}
+        {terfilter.map((x) => (
           <div className="row" key={x.id}>
             <div className="row-main">
               <div><b>{x.nama}</b> <span className="muted small">{x.qty || '-'}</span></div>
