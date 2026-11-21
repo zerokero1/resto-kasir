@@ -13,6 +13,7 @@ import Laporan from './pages/Laporan';
 import LaporanHarian from './pages/LaporanHarian';
 import Karyawan from './pages/Karyawan';
 import Dashboard from './pages/Dashboard';
+import PengeluaranSupplier from './pages/PengeluaranSupplier';
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -116,6 +117,12 @@ export default function App() {
           element={user.role === 'boss'
             ? <TidakAda judul="Produk" pesan="Akun Bos hanya bisa membuka Dashboard, Riwayat, dan Laporan." />
             : <Produk />}
+        />
+        <Route
+          path="/pengeluaran-supplier"
+          element={user.role === 'boss'
+            ? <TidakAda judul="Pengeluaran Supplier" pesan="Akun Bos hanya bisa membuka Dashboard, Riwayat, dan Laporan." />
+            : <PengeluaranSupplier user={user} />}
         />
         <Route path="/laporan" element={<Laporan />} />
         <Route

@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { rentangUtcWib, tglWib, jamWib } from './format';
+import { ambilPengeluaranSupplierRentang } from './supplierService';
 
 export async function laporanStok() {
   const { data, error } = await supabase
@@ -326,6 +327,23 @@ export async function laporanKas(dari, sampai) {
   } catch (e) {
     if (!/Could not find the table/.test(String(e.message))) throw e;
   }
+  // PengeluaranSupplier adalah sumber terpisah dan SELALU ditambahkan di atas
+  // pengeluaran otomatis/manual. Tidak ikut dihapus oleh tombol Simpan/Reset
+  // Laporan Kas, jadi tidak ada risiko dobel hitung.
+  let pengSupplier = [];
+  try {
+    pengSupplier = await ambilPengeluaranSupplierRentang(dari, sampai);
+  } catch (e) {
+    if (!/Tabel pengeluaran supplier belum ada/i.test(String(e.message))) throw e;
+  }
+  const pengSupplierDept = {};
+  for (const x of pengSupplier) {
+    const hari = tglWib(x.tanggal);
+    const dept = DEPT_PENGELUARAN.includes(x.departemen) ? x.departemen : 'Operasional';
+    pengSupplierDept[hari] ??= { Kitchen: 0, Coffee: 0, Bar: 0, Operasional: 0 };
+    pengSupplierDept[hari][dept] += Number(x.nominal) || 0;
+  }
+
   // per tanggal -> { departemen: nominal }. Data hasil tombol Simpan (MANUAL_KAS)
   // dipisah supaya tetap bisa diedit; data impor lain bersifat read-only.
   const pengDbDept = {};
@@ -371,6 +389,7 @@ export async function laporanKas(dari, sampai) {
       tanpa: 0,
       pengeluaran: pengeluaran[hari] || 0,
       pengAutoDept: pengAutoDept[hari] || null,
+      pengSupplierDb: pengSupplierDept[hari] || null,
       pengDb: pengDbDept[hari] || null,
       pengManualDb: pengManualDept[hari] || null,
       pengeluaranDb: pengDbDept[hari] ? Object.values(pengDbDept[hari]).reduce((s, v) => s + (v || 0), 0) : 0
@@ -398,7 +417,8 @@ export async function laporanKas(dari, sampai) {
   for (const hari of new Set([
     ...Object.keys(pengeluaran),
     ...Object.keys(pengDbDept),
-    ...Object.keys(pengManualDept)
+    ...Object.keys(pengManualDept),
+    ...Object.keys(pengSupplierDept)
   ])) {
     if (hari >= dari && hari <= sampai) baruHari(hari);
   }

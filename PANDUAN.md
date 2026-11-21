@@ -15,7 +15,7 @@ Tidak perlu memasang aplikasi dari Play Store — aplikasi ini berjalan di brows
 | Peran | Akun contoh | Bisa membuka |
 |---|---|---|
 | **Admin** | `admin@dayangresto.id` / `admin123` | Semua halaman, termasuk **Karyawan** dan **Dashboard** |
-| **Kasir** | `kasir@dayangresto.id` / `kasir123` | Kasir, Riwayat, Belum Bayar, Stok, Produk, Laporan, Harian |
+| **Kasir** | `kasir@dayangresto.id` / `kasir123` | Kasir, Riwayat, Belum Bayar, Stok, Produk, Supplier, Laporan, Harian |
 | **Bos** | `bos@dayangresto.id` / `bos123` | **Dashboard, Riwayat, Laporan** saja (hanya melihat) |
 
 > Ganti sandi akun lewat menu **Karyawan → Tambah Akun Kasir** (admin) atau minta admin
@@ -24,7 +24,7 @@ Tidak perlu memasang aplikasi dari Play Store — aplikasi ini berjalan di brows
 
 Menu di bawah layar (bottom bar) menyesuaikan peran:
 
-- **Kasir:** 🛒 Kasir · 🧾 Riwayat · ⏳ Belum Bayar · 📦 Stok · 🍽️ Produk · 📊 Laporan · 🗓️ Harian
+- **Kasir:** 🛒 Kasir · 🧾 Riwayat · ⏳ Belum Bayar · 📦 Stok · 🍽️ Produk · 🚚 Supplier · 📊 Laporan · 🗓️ Harian
 - **Admin:** semua di atas + 📈 Dashboard + 👥 Karyawan
 - **Bos:** 📈 Dashboard · 🧾 Riwayat · 📊 Laporan
 
@@ -220,6 +220,25 @@ Bila harga menu berubah, transaksi lama **tidak** ikut berubah (harga tersimpan 
 - **Tambah Karyawan** — data karyawan (nama, telepon, jabatan).
 - **Daftar Karyawan** — aktif/nonaktif.
 - **Tambah Akun Kasir** — membuat akun login baru (email + sandi) dengan peran kasir.
+
+---
+
+## 9.1 Pengeluaran Supplier (🚚 — kasir & admin)
+
+Halaman ini dipakai untuk **mencatat uang yang dibayarkan ke supplier/toko**.
+
+1. Isi **Tanggal**, **Nama supplier/toko**, **Departemen**, **Nama barang/jasa**,
+   **Jumlah/qty**, **Nominal (Rp)**, dan **Catatan/no nota** (opsional).
+2. Tekan **＋ Tambah Pengeluaran**. Data langsung tersimpan di server.
+3. Satu baris = satu item. Bila satu nota berisi beberapa barang, isi beberapa baris
+   dengan supplier & tanggal yang sama.
+4. Baris bisa diubah lewat tombol **Ubah** atau dihapus lewat **Hapus**.
+5. Ringkasan di bawah halaman menampilkan total per departemen dan total keseluruhan.
+
+> Nominal supplier **otomatis masuk ke Laporan Kas** sebagai pengeluaran tambahan
+> sesuai departemen, dan tidak ikut dihapus tombol **Reset/Simpan** di halaman itu.
+> Data disimpan di tabel terpisah (`resto_pengeluaran_supplier`) supaya tidak dobel
+> hitung dengan data impor lama. Halaman ini tidak tersedia untuk akun **Bos**.
 
 ---
 
@@ -425,6 +444,9 @@ Bila PWA masih memuat versi lama, lakukan pembersihan cache di bagian 13.
 - `supabase/migrasi-pengeluaran-kas.sql` — hanya perlu dijalankan bila tabel
   `resto_pengeluaran` belum ada (tombol Simpan Laporan Kas akan memberi pesan ini).
   Database produksi saat ini sudah punya tabel tersebut.
+- `supabase/migrasi-pengeluaran-supplier.sql` — **wajib** untuk halaman 🚚 Supplier.
+  Membuat tabel `resto_pengeluaran_supplier`. Belum dijalankan di produksi; Jalankan
+  sekali di SQL Editor sebelum memakai halaman Supplier.
 
 Jalankan di **Supabase → SQL Editor → New query → Run**. Setelah itu uji:
 

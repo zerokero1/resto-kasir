@@ -38,23 +38,36 @@ export default function Laporan() {
     const manual = bacaPengeluaranManual();
     return (kasQ.data || []).map((h) => {
       const m = manual[h.tanggal];
-      let peng = h.pengAutoDept
+      // pengDasar = angka yang bisa diedit/disimpan tombol Simpan di halaman ini.
+      let pengDasar = h.pengAutoDept
         ? { ...h.pengAutoDept }
         : { Kitchen: h.pengeluaran, Coffee: 0, Bar: 0, Operasional: 0 };
       let sumber = 'auto';
       if (h.pengDb) {
-        peng = { Kitchen: 0, Coffee: 0, Bar: 0, Operasional: 0, ...h.pengDb };
+        pengDasar = { Kitchen: 0, Coffee: 0, Bar: 0, Operasional: 0, ...h.pengDb };
         sumber = 'database';
       } else if (h.pengManualDb) {
         // Data yang sudah tersimpan di server lebih utama daripada draf lokal.
-        peng = { ...peng, ...h.pengManualDb };
+        pengDasar = { ...pengDasar, ...h.pengManualDb };
         sumber = 'server';
       } else if (m) {
-        peng = { ...peng, ...m };
+        pengDasar = { ...pengDasar, ...m };
         sumber = 'manual';
       }
+
+      // Supplier selalu DITAMBAHKAN (bukan mengganti) dan tidak ikut disimpan
+      // sebagai MANUAL_KAS, supaya tidak dobel hitung saat halaman ini di-refresh.
+      const peng = { ...pengDasar };
+      let totalSupplier = 0;
+      if (h.pengSupplierDb) {
+        for (const d of DEPT_PENGELUARAN) {
+          const s = Number(h.pengSupplierDb[d]) || 0;
+          peng[d] = (Number(peng[d]) || 0) + s;
+          totalSupplier += s;
+        }
+      }
       const totalPeng = Object.values(peng).reduce((s, v) => s + (Number(v) || 0), 0);
-      return { ...h, peng, totalPeng, sumber };
+      return { ...h, peng, pengDasar, totalSupplier, totalPeng, sumber };
     });
   }, [kasQ.data]);
 
@@ -83,7 +96,7 @@ export default function Laporan() {
     setKasInfo('Menyimpan…');
     try {
       for (const h of target) {
-        await simpanPengeluaranKeServer(h.tanggal, h.peng);
+        await simpanPengeluaranKeServer(h.tanggal, h.pengDasar);
         hapusPengeluaranManual(h.tanggal);
       }
       setKasVersi((v) => v + 1);
@@ -391,6 +404,9 @@ export default function Laporan() {
                     : h.sumber === 'server' ? '✓ tersimpan di server'
                     : h.sumber === 'manual' ? '✎ belum disimpan' : '· otomatis dari catatan pembelian'}
                 </span>
+                {h.totalSupplier > 0 && (
+                  <span className="muted small">+ {uang(h.totalSupplier)} dari Supplier</span>
+                )}
                 {h.sumber === 'database' ? (
                   <span className="muted small">Total: {uang(h.pengeluaranDb)} — {Object.entries(h.peng).filter(([, v]) => v > 0).map(([d]) => d).join(', ') || '-'}</span>
                 ) : (
@@ -403,7 +419,7 @@ export default function Laporan() {
                           type="number"
                           min="0"
                           step="500"
-                          value={h.peng[d]}
+                          value={h.pengDasar[d]}
                           onChange={(e) => {
                             simpanPengeluaranManual(h.tanggal, d, Number(e.target.value) || 0);
                             setKasVersi((v) => v + 1);

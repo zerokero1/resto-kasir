@@ -9,6 +9,7 @@ const tabs = [
   { to: '/hutang', label: 'Belum Bayar', icon: '⏳' },
   { to: '/stok', label: 'Stok', icon: '📦' },
   { to: '/produk', label: 'Produk', icon: '🍽️' },
+  { to: '/pengeluaran-supplier', label: 'Supplier', icon: '🚚' },
   { to: '/laporan', label: 'Laporan', icon: '📊', boss: true },
   { to: '/laporan-harian', label: 'Harian', icon: '🗓️' },
   { to: '/karyawan', label: 'Karyawan', icon: '👥', admin: true }
