@@ -54,9 +54,12 @@ function TidakAda({ judul, pesan }) {
 }
 
 function UpdatePrompt() {
-  const { needRefresh, updateServiceWorker } = useRegisterSW();
+  // Versi vite-plugin-pwa yang dipakai mengembalikan needRefresh sebagai
+  // pasangan [nilai, setter]. Membacanya sebagai boolean membuat banner
+  // selalu muncul walaupun tidak ada pembaruan.
+  const { needRefresh: [perluUpdate], updateServiceWorker } = useRegisterSW();
   const [ditunda, setDitunda] = useState(false);
-  if (!needRefresh || ditunda) return null;
+  if (!perluUpdate || ditunda) return null;
   return (
     <div className="update-banner" role="status">
       <span>Versi baru sudah tersedia. Perbarui setelah transaksi selesai.</span>
