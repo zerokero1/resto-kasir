@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { simpanAbsensi } from '../lib/absensiService';
 import { registerKasir } from '../lib/authService';
 import { todayStr } from '../lib/format';
 
@@ -55,11 +56,14 @@ export default function Karyawan({ user }) {
     if (!absen.karyawan_id) return;
     setErr(''); setBusy(true);
     try {
-      const { error } = await supabase.from('resto_absensi').upsert(
-        { karyawan_id: absen.karyawan_id, tanggal: todayStr(), status: absen.status, menit_lembur: Number(absen.menit_lembur) || 0, catatan: absen.catatan || null, user_id: user.id },
-        { onConflict: 'karyawan_id,tanggal' }
-      );
-      if (error) throw new Error(error.message);
+      await simpanAbsensi({
+        karyawanId: absen.karyawan_id,
+        tanggal: todayStr(),
+        status: absen.status,
+        menitLembur: absen.menit_lembur,
+        catatan: absen.catatan,
+        userId: user.id
+      });
       setOk('Absensi tersimpan.');
       setAbsen((a) => ({ ...a, menit_lembur: '', catatan: '' }));
     } catch (e) { setErr(e.message); } finally { setBusy(false); }

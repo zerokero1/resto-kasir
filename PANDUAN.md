@@ -15,7 +15,7 @@ Tidak perlu memasang aplikasi dari Play Store — aplikasi ini berjalan di brows
 | Peran | Akun contoh | Bisa membuka |
 |---|---|---|
 | **Admin** | `admin@dayangresto.id` / `admin123` | Semua halaman, termasuk **Karyawan** dan **Dashboard** |
-| **Kasir** | `kasir@dayangresto.id` / `kasir123` | Kasir, Riwayat, Belum Bayar, Stok, Produk, Supplier, Laporan, Harian |
+| **Kasir** | `kasir@dayangresto.id` / `kasir123` | Kasir, Riwayat, Belum Bayar, Stok, Produk, Absensi, Supplier, Laporan, Harian |
 | **Bos** | `bos@dayangresto.id` / `bos123` | **Dashboard, Riwayat, Laporan** saja (hanya melihat) |
 
 > Ganti sandi akun lewat menu **Karyawan → Tambah Akun Kasir** (admin) atau minta admin
@@ -24,7 +24,7 @@ Tidak perlu memasang aplikasi dari Play Store — aplikasi ini berjalan di brows
 
 Menu di bawah layar (bottom bar) menyesuaikan peran:
 
-- **Kasir:** 🛒 Kasir · 🧾 Riwayat · ⏳ Belum Bayar · 📦 Stok · 🍽️ Produk · 🚚 Supplier · 📊 Laporan · 🗓️ Harian
+- **Kasir:** 🛒 Kasir · 🧾 Riwayat · ⏳ Belum Bayar · 📦 Stok · 🍽️ Produk · 📅 Absensi · 🚚 Supplier · 📊 Laporan · 🗓️ Harian
 - **Admin:** semua di atas + 📈 Dashboard + 👥 Karyawan
 - **Bos:** 📈 Dashboard · 🧾 Riwayat · 📊 Laporan
 
@@ -214,12 +214,34 @@ Bila harga menu berubah, transaksi lama **tidak** ikut berubah (harga tersimpan 
 
 ---
 
-## 9. Karyawan & absensi (👥 — admin)
+## 9. Karyawan (👥 — admin)
 
-- **Absensi hari ini** — tandai status tiap karyawan (hadir / izin / sakit / alpa, dst).
+- **Absen** — input cepat satu karyawan untuk hari ini (cara lama).
 - **Tambah Karyawan** — data karyawan (nama, telepon, jabatan).
 - **Daftar Karyawan** — aktif/nonaktif.
 - **Tambah Akun Kasir** — membuat akun login baru (email + sandi) dengan peran kasir.
+
+---
+
+## 9.0 Absensi bulanan (📅 — kasir & admin)
+
+Halaman ini meniru grid absensi di aplikasi Dayang yang lain: **baris = karyawan**,
+**kolom = tanggal**, **sel = status kehadiran**.
+
+1. Pilih **Bulan** di bagian atas. Karyawan aktif otomatis tampil sebagai baris.
+2. **Klik sel** pada baris karyawan dan kolom tanggal untuk membuka kotak edit.
+3. Pilih status: **H** hadir, **T** telat, **S** sakit, **I** izin, **A** alpha,
+   **L** lembur (khusus data lama). Isi **menit lembur** bila ada, lalu **Simpan**.
+   - Lembur **bukan status**: pilih Hadir lalu isi menitnya.
+   - **Kosongkan** menghapus absensi pada sel tersebut.
+4. Kolom di ujung kanan menghitung otomatis jumlah H/T/S/I/A/L dan total menit lembur
+   per karyawan. Baris **TOTAL** di bawah berisi jumlah untuk seluruh karyawan.
+5. **Isi satu hari untuk semua** dipakai untuk borongan (mis. seluruh karyawan Hadir).
+   Perhatikan: ini **menimpa** catatan lama di tanggal itu, termasuk menit lembur dan catatan.
+6. Tombol **⬇️ Excel** mengunduh rincian absensi bulan tersebut.
+
+Data tersimpan di tabel yang sama dengan input lama (`resto_absensi`), jadi laporan
+**📊 Laporan → Absensi** langsung ikut berubah. Halaman ini tidak tersedia untuk akun **Bos**.
 
 ---
 
